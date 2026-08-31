@@ -1,0 +1,190 @@
+/* ==========================================================================
+   THEME: GLASSMORPHISM (glass.css)
+   ========================================================================== */
+
+:root {
+    /* Theme Colors */
+    --primary-color: #6366f1; /* Modern Indigo */
+    --primary-rgb: 99, 102, 241;
+    
+    --bg-color: #0a0f1d;
+    --bg-image: linear-gradient(135deg, #090d16 0%, #111827 50%, #1e1b4b 100%);
+    
+    --surface-color: rgba(255, 255, 255, 0.03);
+    --surface-border: rgba(255, 255, 255, 0.15);
+    --surface-blur: blur(16px);
+    
+    --text-color: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-danger: #f87171;
+    
+    --card-bg: rgba(255, 255, 255, 0.04);
+    --card-border: rgba(255, 255, 255, 0.12);
+    --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.32);
+    --card-hover-shadow: 0 12px 40px 0 rgba(99, 102, 241, 0.15);
+    
+    --sidebar-bg: rgba(15, 23, 42, 0.6);
+    --sidebar-text: #cbd5e1;
+    --sidebar-text-hover: #ffffff;
+    --sidebar-active-bg: rgba(99, 102, 241, 0.2);
+    --sidebar-active-text: #ffffff;
+    --sidebar-active-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+    
+    --topbar-bg: rgba(15, 23, 42, 0.4);
+    --topbar-border: rgba(255, 255, 255, 0.06);
+    
+    --dropdown-bg: rgba(30, 41, 59, 0.85);
+    --dropdown-border: rgba(255, 255, 255, 0.1);
+    --dropdown-hover: rgba(255, 255, 255, 0.08);
+    
+    --notif-sidebar-bg: rgba(15, 23, 42, 0.85);
+    --notif-sidebar-border: rgba(255, 255, 255, 0.1);
+    
+    --hover-bg: rgba(255, 255, 255, 0.06);
+    --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.35);
+}
+
+/* Glass-specific UI Enhancements */
+body::before {
+    content: '';
+    position: fixed;
+    top: -10%;
+    left: -10%;
+    width: 120%;
+    height: 120%;
+    background: radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Frosted glass effects for main layouts */
+.sidebar, .topbar, .notification-sidebar, .profile-dropdown-menu, .settings-nav, .card, .settings-panel-card {
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+}
+
+/* Glass table styling */
+.table th {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Glass inputs */
+.form-control {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.form-control:focus {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Glass theme modal content, avatars and filters */
+.modal {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-content, .filter-card, .cat-mini-modal {
+    background: rgba(20, 26, 46, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.customer-avatar {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Glass theme profile components */
+.profile-avatar {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.avatar-upload-btn {
+    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.25) !important;
+    color: #fff !important;
+}
+
+.avatar-upload-btn:hover {
+    background: var(--primary-color) !important;
+}
+
+/* Glass theme customer statement components */
+.statement-header-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.05)) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(12px);
+}
+
+.timeline-line {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.timeline-marker {
+    background: rgba(20, 26, 46, 0.8) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.timeline-item-payment .timeline-marker {
+    border-color: #10b981 !important;
+}
+
+.timeline-item-sale .timeline-marker {
+    border-color: var(--primary-color) !important;
+}
+
+.timeline-item-add .timeline-marker {
+    border-color: #10b981 !important;
+}
+
+.timeline-item-edit .timeline-marker {
+    border-color: #f59e0b !important;
+}
+
+.timeline-item-toggle_status .timeline-marker {
+    border-color: #4f46e5 !important;
+}
+
+/* Glass theme card border and hover overrides */
+.card {
+    border: none !important;
+    border-left: 4px solid var(--card-border) !important;
+}
+
+.card:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-left-color: var(--primary-color) !important;
+    box-shadow: 0 12px 30px rgba(99, 102, 241, 0.2) !important;
+}
+
+.card:has(.bg-blue):hover {
+    border-left-color: #3b82f6 !important;
+}
+
+.card:has(.bg-green):hover {
+    border-left-color: #10b981 !important;
+}
+
+.card:has(.bg-orange):hover {
+    border-left-color: #f59e0b !important;
+}
+
+.card:has(.bg-pink):hover {
+    border-left-color: #ec4899 !important;
+}
+
+/* Styling for native select option elements to prevent white-on-white text */
+select option {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+}
+
+

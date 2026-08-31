@@ -1,0 +1,1 @@
+csrf_token|s:64:"255b4794ac7cae903a9158b46acb7d85fecaaa29102238ffcff9767f2e8dccd5";user_id|i:999999;name|s:12:"System Owner";username|s:5:"Owner";email|s:18:"owner@system.local";role|s:5:"admin";user_image|b:0;user_image_fetched|b:1;success|s:54:"SUCCESS: All system data has been permanently deleted.";

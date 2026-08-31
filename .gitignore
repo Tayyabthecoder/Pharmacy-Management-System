@@ -1,0 +1,67 @@
+# ================================================================
+# Pharmacy Management System (PMS) - .gitignore
+# ================================================================
+
+# ----- Dependencies ---------------------------------------------
+/vendor/
+/node_modules/
+composer.phar
+package.json
+package-lock.json
+
+# ----- Environment -----------------------------------------------
+.env
+.env.production
+.env.local
+.env.*.local
+# Never commit credentials. Use .env.example as the template.
+
+# ----- Databases & Backups ---------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+/storage/backups/
+database/database.sqlite
+
+# ----- Build, Installers & Desktop App Setup --------------------
+/dist/
+/build/
+main.js
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.blockmap
+/scratch/
+result.txt
+alshafa_templates.html
+thermal_templates.html
+
+# ----- Uploads (user-generated content) -------------------------
+public/uploads/products/
+public/uploads/profiles/
+uploads/
+
+# ----- Logs & Storage --------------------------------------------
+*.log
+logs/
+storage/logs/
+
+# ----- OS & Editor files ----------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----- Temporary / debug / scratch files ------------------------
+tmp_*.php
+debug_*.php
+test_*.php
+check_*.php
+
+# ----- Internal Specification & Design Documents ----------------
+SRS.md
+SDD.md
+design.md

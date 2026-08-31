@@ -1,0 +1,232 @@
+/* ==========================================================================
+   THEME: NEON DARK (neon-dark.css)
+   ========================================================================== */
+
+:root {
+    /* Theme Colors */
+    --primary-color: #00f2fe; /* Neon Cyan */
+    --primary-rgb: 0, 242, 254;
+    
+    --bg-color: #08090d;
+    --bg-image: radial-gradient(circle at top right, #111424, #08090d 60%);
+    
+    --surface-color: #121520;
+    --surface-border: #283149;
+    --surface-blur: none;
+    
+    --text-color: #e2e8f0;
+    --text-muted: #6b7c96;
+    --text-danger: #ff3b30;
+    
+    --card-bg: #121520;
+    --card-border: #283149;
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --card-hover-shadow: 0 8px 30px rgba(0, 242, 254, 0.15);
+    
+    --sidebar-bg: #0c0e16;
+    --sidebar-text: #8a99ad;
+    --sidebar-text-hover: #00f2fe;
+    --sidebar-active-bg: rgba(0, 242, 254, 0.08);
+    --sidebar-active-text: #00f2fe;
+    --sidebar-active-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    
+    --topbar-bg: #0c0e16;
+    --topbar-border: #283149;
+    
+    --dropdown-bg: #121520;
+    --dropdown-border: #283149;
+    --dropdown-hover: rgba(0, 242, 254, 0.06);
+    
+    --notif-sidebar-bg: #0c0e16;
+    --notif-sidebar-border: #283149;
+    
+    --hover-bg: rgba(255, 255, 255, 0.03);
+    --focus-ring: 0 0 0 3px rgba(0, 242, 254, 0.3);
+}
+
+/* Neon Dark Styling Adjustments */
+body {
+    letter-spacing: 0.5px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    text-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
+}
+
+/* Accent top border glow for cards */
+.card::before {
+    background: var(--surface-border);
+}
+
+.card:hover::before {
+    background: var(--primary-color);
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+/* Neon Glow buttons */
+.btn-primary {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.5);
+}
+
+.btn-save {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-save:hover {
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
+}
+
+/* High contrast zebra striping for tables */
+.table th {
+    background: #171b29;
+    border-bottom: 2px solid #1f2538;
+}
+
+.table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.table tbody tr:hover {
+    background: rgba(0, 242, 254, 0.04);
+}
+
+/* Inputs styled with neon accents on focus */
+.form-control {
+    background: #0f111a;
+    border-color: #1f2538;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 8px rgba(0, 242, 254, 0.2);
+}
+
+/* Sidebar navigation item active border indicator */
+.sidebar-nav li.active a {
+    border-left: 3px solid var(--primary-color);
+}
+
+/* Neon Dark theme modal content, avatars and filter card */
+.modal-content, .filter-card, .cat-mini-modal {
+    background: #121520;
+    border: 1px solid #1f2538;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header-icon {
+    background: rgba(0, 242, 254, 0.08);
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+.delete-modal-icon {
+    background: rgba(255, 59, 48, 0.08);
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.15);
+}
+
+.customer-avatar {
+    background: #181d2e;
+    border: 1px solid #00f2fe;
+    box-shadow: 0 0 8px rgba(0, 242, 254, 0.2);
+    color: #00f2fe;
+}
+
+/* Neon Dark theme profile components */
+.profile-avatar {
+    border-color: #00f2fe !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important;
+    background: #181d2e;
+}
+
+.avatar-upload-btn {
+    background: #181d2e !important;
+    border-color: #00f2fe !important;
+    color: #00f2fe !important;
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
+.avatar-upload-btn:hover {
+    background: var(--primary-color) !important;
+    color: #000 !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
+}
+
+/* Neon Dark theme customer statement components */
+.statement-header-card {
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.1), rgba(79, 70, 229, 0.03)) !important;
+    border-color: rgba(0, 242, 254, 0.25) !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.1) !important;
+}
+
+.timeline-line {
+    background: #1f2538;
+}
+
+.timeline-marker {
+    background: #0f111a !important;
+    border-color: #1f2538 !important;
+}
+
+.timeline-item-payment .timeline-marker {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.timeline-item-sale .timeline-marker {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
+.timeline-item-add .timeline-marker {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.timeline-item-edit .timeline-marker {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.timeline-item-toggle_status .timeline-marker {
+    border-color: #00f2fe !important;
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
+/* Neon Dark card border and hover overrides */
+.card {
+    border: none !important;
+    border-left: 4px solid var(--card-border) !important;
+}
+
+.card:hover {
+    border-left-color: #00f2fe !important;
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.2) !important;
+}
+
+.card:has(.bg-blue):hover {
+    border-left-color: #3b82f6 !important;
+}
+
+.card:has(.bg-green):hover {
+    border-left-color: #10b981 !important;
+}
+
+.card:has(.bg-orange):hover {
+    border-left-color: #f59e0b !important;
+}
+
+.card:has(.bg-pink):hover {
+    border-left-color: #ec4899 !important;
+}
+
+/* Styling for native select option elements to prevent white-on-white text */
+select option {
+    background-color: #121520 !important;
+    color: #e2e8f0 !important;
+}
+
+
