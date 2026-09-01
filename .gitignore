@@ -16,12 +16,15 @@ package-lock.json
 .env.*.local
 # Never commit credentials. Use .env.example as the template.
 
-# ----- Databases & Backups ---------------------------------------
+# ----- Databases, Sessions, Dumps & Backups -----------------------
 *.sqlite
 *.sqlite3
 *.db
 /storage/backups/
 database/database.sqlite
+database/sessions/
+database/dumps/
+database/migrations/
 
 # ----- Build, Installers & Desktop App Setup --------------------
 /dist/
