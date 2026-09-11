@@ -1,0 +1,46 @@
+{
+  "name": "Pharmacy Management System",
+  "short_name": "PMS",
+  "description": "Smart, Fast & Offline-Resilient Pharmacy Management & POS System",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "assets/icons/svg/fa-prescription-bottle-medical.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/svg/fa-pills.svg",
+      "sizes": "96x96 144x144",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": [
+    "medical",
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Open POS Terminal",
+      "short_name": "POS",
+      "description": "Start a new patient sales invoice",
+      "url": "admin/create_invoice",
+      "icons": [{ "src": "assets/icons/svg/fa-cash-register.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Medicine Inventory",
+      "short_name": "Stock",
+      "description": "View active medicines & batch stock",
+      "url": "admin/products",
+      "icons": [{ "src": "assets/icons/svg/fa-capsules.svg", "sizes": "96x96" }]
+    }
+  ]
+}

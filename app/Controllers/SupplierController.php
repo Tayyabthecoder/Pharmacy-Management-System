@@ -8,15 +8,18 @@ use PDOException;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\Company;
+use App\Models\SupplierPayment;
 
 class SupplierController {
     protected $supplierModel;
     protected $companyModel;
+    protected $supplierPaymentModel;
 
     public function __construct() {
         (new \App\Middleware\RoleMiddleware(['admin']))->handle();
         $this->supplierModel = new Supplier();
         $this->companyModel = new Company();
+        $this->supplierPaymentModel = new SupplierPayment();
     }
 
     public function index() {
@@ -138,6 +141,15 @@ class SupplierController {
         $activeCompaniesCount = count(array_filter($allCompanies, function($c) {
             return ($c['status'] ?? 'active') === 'active';
         }));
+
+        // Supplier Credit & Balances Summary
+        $creditSummary = $this->supplierPaymentModel->getSupplierCreditSummary();
+        $supplierCreditMap = [];
+        $totalOutstandingCredit = 0.00;
+        foreach ($creditSummary as $cs) {
+            $supplierCreditMap[$cs['supplier_id']] = $cs;
+            $totalOutstandingCredit += (float)$cs['total_due'];
+        }
 
         require_once BASE_PATH . '/resources/views/admin/suppliers.php';
     }

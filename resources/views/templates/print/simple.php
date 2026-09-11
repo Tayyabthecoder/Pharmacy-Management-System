@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice #<?php echo str_pad($invoice['id'] ?? 0, 5, '0', STR_PAD_LEFT); ?></title>
+    <title>Invoice #<?php echo invoice_display_number($invoice); ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -208,7 +208,7 @@ require BASE_PATH . '/resources/views/templates/print/partials/print_buttons.php
         </div>
         <div class="invoice-details" style="text-align: right;">
             <h3>INVOICE</h3>
-            <p><strong>Invoice #:</strong> <?php echo str_pad($invoice['id'] ?? 0, 5, '0', STR_PAD_LEFT); ?></p>
+            <p><strong>Invoice #:</strong> <?php echo invoice_display_number($invoice); ?></p>
             <p><strong>Date:</strong> <?php echo date('M d, Y', strtotime($invoice['created_at'] ?? 'now')); ?></p>
             <p><strong>To:</strong> <?php echo htmlspecialchars($invoice['customer_name'] ?? ''); ?></p>
             <div style="margin-top: 5px;"><?php render_status_badge($invoice); ?></div>

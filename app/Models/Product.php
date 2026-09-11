@@ -6,6 +6,7 @@ use Exception;
 use PDO;
 use PDOException;
 use App\Models\BaseModel;
+use App\Support\QueryHelper;
 
 class Product extends BaseModel {
     protected $table = 'products';
@@ -50,29 +51,32 @@ class Product extends BaseModel {
     }
 
     public function create($data) {
-        $sql = "INSERT INTO {$this->table} (name, generic_id, strength, batch_number, expiry_date, company_id, manufacturer, category_id, price, trad_price, cost_price, quantity, min_stock_level, image) 
-                VALUES (:name, :generic_id, :strength, :batch_number, :expiry_date, :company_id, :manufacturer, :category_id, :price, :trad_price, :cost_price, :quantity, :min_stock_level, :image)";
+        $sql = "INSERT INTO {$this->table} (name, generic_id, strength, batch_number, expiry_date, company_id, manufacturer, category_id, price, trad_price, cost_price, quantity, min_stock_level, is_prescription_required, barcode, image) 
+                VALUES (:name, :generic_id, :strength, :batch_number, :expiry_date, :company_id, :manufacturer, :category_id, :price, :trad_price, :cost_price, :quantity, :min_stock_level, :is_prescription_required, :barcode, :image)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([
-            'name' => $data['name'],
-            'generic_id' => !empty($data['generic_id']) ? (int)$data['generic_id'] : null,
-            'strength' => $data['strength'] ?? null,
-            'batch_number' => $data['batch_number'] ?? null,
-            'expiry_date' => !empty($data['expiry_date']) ? $data['expiry_date'] : null,
-            'company_id' => !empty($data['company_id']) ? (int)$data['company_id'] : null,
-            'manufacturer' => $data['manufacturer'] ?? null,
-            'category_id' => !empty($data['category_id']) ? (int)$data['category_id'] : null,
-            'price' => $data['price'],
-            'trad_price' => $data['trad_price'] ?? 0.00,
-            'cost_price' => $data['cost_price'] ?? 0.00,
-            'quantity' => $data['quantity'] !== '' ? (int)$data['quantity'] : 0,
-            'min_stock_level' => $data['min_stock_level'] !== '' ? (int)$data['min_stock_level'] : 10,
-            'image' => $data['image'] ?? ''
+        $success = $stmt->execute([
+            'name'                     => $data['name'],
+            'generic_id'               => !empty($data['generic_id']) ? (int)$data['generic_id'] : null,
+            'strength'                 => $data['strength'] ?? null,
+            'batch_number'             => $data['batch_number'] ?? null,
+            'expiry_date'              => !empty($data['expiry_date']) ? $data['expiry_date'] : null,
+            'company_id'               => !empty($data['company_id']) ? (int)$data['company_id'] : null,
+            'manufacturer'             => $data['manufacturer'] ?? null,
+            'category_id'              => !empty($data['category_id']) ? (int)$data['category_id'] : null,
+            'price'                    => $data['price'],
+            'trad_price'               => $data['trad_price'] ?? 0.00,
+            'cost_price'               => $data['cost_price'] ?? 0.00,
+            'quantity'                 => $data['quantity'] !== '' ? (int)$data['quantity'] : 0,
+            'min_stock_level'          => $data['min_stock_level'] !== '' ? (int)$data['min_stock_level'] : 10,
+            'is_prescription_required' => !empty($data['is_prescription_required']) ? 1 : 0,
+            'barcode'                  => !empty($data['barcode']) ? trim($data['barcode']) : null,
+            'image'                    => $data['image'] ?? ''
         ]);
+        return $success ? (int)$this->db->lastInsertId() : false;
     }
 
     public function update($id, $data) {
-        $allowedFields = ['name', 'generic_id', 'strength', 'batch_number', 'expiry_date', 'company_id', 'manufacturer', 'category_id', 'price', 'trad_price', 'cost_price', 'quantity', 'min_stock_level', 'image'];
+        $allowedFields = ['name', 'generic_id', 'strength', 'batch_number', 'expiry_date', 'company_id', 'manufacturer', 'category_id', 'price', 'trad_price', 'cost_price', 'quantity', 'min_stock_level', 'is_prescription_required', 'barcode', 'image'];
         $fields = [];
         $params = ['id' => $id];
 
@@ -90,6 +94,23 @@ class Product extends BaseModel {
         $sql = "UPDATE {$this->table} SET " . implode(', ', $fields) . " WHERE id = :id";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
+    }
+
+    public function findByBarcode(string $barcode) {
+        $trimmed = trim($barcode);
+        if ($trimmed === '') return null;
+        $sql = "SELECT p.*, c.name as category_name, g.name as generic_name, comp.name as company_name 
+                FROM {$this->table} p 
+                LEFT JOIN categories c ON p.category_id = c.id 
+                LEFT JOIN generics g ON p.generic_id = g.id
+                LEFT JOIN companies comp ON p.company_id = comp.id
+                WHERE p.barcode = :barcode OR p.id = :idInt LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'barcode' => $trimmed,
+            'idInt'   => ctype_digit($trimmed) ? (int)$trimmed : -1
+        ]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function deleteProduct($id) {
@@ -208,34 +229,20 @@ class Product extends BaseModel {
     }
 
     public function getSummaryStats(): array {
-        $all = $this->all($this->table);
-        $total = count($all);
-        $inStock = 0;
-        $lowStock = 0;
-        $expiring = 0;
-        $sixMonths = date('Y-m-d', strtotime('+6 months'));
-
-        foreach ($all as $p) {
-            $qty = (int)($p['quantity'] ?? 0);
-            $min = (int)($p['min_stock_level'] ?? 10);
-            $exp = $p['expiry_date'] ?? null;
-
-            if ($qty > 0) {
-                $inStock++;
-                if ($qty < $min) {
-                    $lowStock++;
-                }
-            }
-            if (!empty($exp) && $exp <= $sixMonths) {
-                $expiring++;
-            }
-        }
+        $expiringCond = QueryHelper::dateFutureMonths('expiry_date', 6);
+        $sql = "SELECT 
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END) AS in_stock,
+                    SUM(CASE WHEN quantity > 0 AND quantity < COALESCE(min_stock_level, 10) THEN 1 ELSE 0 END) AS low_stock,
+                    SUM(CASE WHEN expiry_date IS NOT NULL AND expiry_date != '' AND {$expiringCond} THEN 1 ELSE 0 END) AS expiring
+                FROM {$this->table}";
+        $res = $this->db->query($sql)->fetch(PDO::FETCH_ASSOC);
 
         return [
-            'total' => $total,
-            'in_stock' => $inStock,
-            'low_stock' => $lowStock,
-            'expiring' => $expiring
+            'total'     => (int)($res['total'] ?? 0),
+            'in_stock'  => (int)($res['in_stock'] ?? 0),
+            'low_stock' => (int)($res['low_stock'] ?? 0),
+            'expiring'  => (int)($res['expiring'] ?? 0),
         ];
     }
 
@@ -244,39 +251,42 @@ class Product extends BaseModel {
     // -----------------------------------------------------------------
 
     public function getExpiredProducts() {
+        $today = QueryHelper::dateNow();
         $sql = "SELECT p.*, c.name as category_name, g.name as generic_name, comp.name as company_name 
                 FROM {$this->table} p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN generics g ON p.generic_id = g.id
                 LEFT JOIN companies comp ON p.company_id = comp.id
-                WHERE p.expiry_date IS NOT NULL AND p.expiry_date <= date('now')
+                WHERE p.expiry_date IS NOT NULL AND p.expiry_date <= {$today}
                 ORDER BY p.expiry_date ASC";
         return $this->db->query($sql)->fetchAll();
     }
 
     public function getNearExpiryProducts(int $days = 180) {
+        $today = QueryHelper::dateNow();
+        $futureDate = QueryHelper::dateFutureDays('p.expiry_date', $days);
         $sql = "SELECT p.*, c.name as category_name, g.name as generic_name, comp.name as company_name 
                 FROM {$this->table} p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN generics g ON p.generic_id = g.id
                 LEFT JOIN companies comp ON p.company_id = comp.id
                 WHERE p.expiry_date IS NOT NULL 
-                  AND p.expiry_date > date('now') 
-                  AND p.expiry_date <= date('now', '+' || :days || ' days')
+                  AND p.expiry_date > {$today} 
+                  AND {$futureDate}
                 ORDER BY p.expiry_date ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':days', $days, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     }
 
     public function searchByGeneric(string $genericName) {
+        $today = QueryHelper::dateNow();
         $sql = "SELECT p.*, c.name as category_name, g.name as generic_name, comp.name as company_name 
                 FROM {$this->table} p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN generics g ON p.generic_id = g.id
                 LEFT JOIN companies comp ON p.company_id = comp.id
-                WHERE g.name LIKE :generic AND p.quantity > 0 AND (p.expiry_date IS NULL OR p.expiry_date > date('now'))
+                WHERE g.name LIKE :generic AND p.quantity > 0 AND (p.expiry_date IS NULL OR p.expiry_date > {$today})
                 ORDER BY p.name ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['generic' => '%' . $genericName . '%']);
@@ -284,15 +294,16 @@ class Product extends BaseModel {
     }
 
     public function searchAutocomplete(string $query, int $limit = 8) {
-        $sql = "SELECT p.id, p.name, p.strength, p.price, p.quantity, p.image, 
+        $sql = "SELECT p.id, p.name, p.strength, p.price, p.trad_price, p.cost_price, p.quantity, p.min_stock_level, p.is_prescription_required, p.barcode, p.image, 
                        c.name as category_name, g.name as generic_name, comp.name as company_name 
                 FROM {$this->table} p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN generics g ON p.generic_id = g.id
                 LEFT JOIN companies comp ON p.company_id = comp.id
-                WHERE (p.name LIKE :q OR g.name LIKE :q OR c.name LIKE :q OR comp.name LIKE :q)
+                WHERE (p.name LIKE :q OR g.name LIKE :q OR c.name LIKE :q OR comp.name LIKE :q OR p.barcode LIKE :q)
                 ORDER BY 
                     CASE 
+                        WHEN p.barcode = :exactQ THEN 0
                         WHEN LOWER(p.name) LIKE LOWER(:exactQ) THEN 1
                         WHEN LOWER(p.name) LIKE LOWER(:startQ) THEN 2
                         ELSE 3

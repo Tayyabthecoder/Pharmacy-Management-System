@@ -177,6 +177,306 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
         </div>
     </div>
 
+    <!-- ════════════ Performance & Sales Analytics ════════════ -->
+    <style>
+        .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 20px 20px;
+        }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+            background: var(--surface-color, rgba(255, 255, 255, 0.03));
+            border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.06));
+            border-radius: var(--radius-md, 10px);
+            transition: all 0.2s ease;
+        }
+        .leaderboard-item:hover {
+            background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-2px);
+        }
+        .rank-badge {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.82rem;
+            flex-shrink: 0;
+        }
+        .rank-1 {
+            background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+        }
+        .rank-2 {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            color: #ffffff;
+            box-shadow: 0 0 8px rgba(148, 163, 184, 0.3);
+        }
+        .rank-3 {
+            background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+            color: #ffffff;
+            box-shadow: 0 0 8px rgba(249, 115, 22, 0.3);
+        }
+        .rank-other {
+            background: var(--card-border, rgba(255, 255, 255, 0.08));
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+        .leaderboard-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #a78bfa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .leaderboard-details {
+            flex: 1;
+            min-width: 0;
+        }
+        .leaderboard-name-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .leaderboard-name {
+            font-weight: 700;
+            font-size: 0.92rem;
+            color: var(--text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .leaderboard-revenue {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #10b981;
+            white-space: nowrap;
+        }
+        .leaderboard-meta-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .leaderboard-progress-bg {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .leaderboard-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f59e0b, #10b981);
+            border-radius: 999px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .product-rank-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--surface-color, rgba(255, 255, 255, 0.03));
+            border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.06));
+            border-radius: var(--radius-md, 10px);
+            transition: all 0.2s ease;
+        }
+        .product-rank-item:hover {
+            background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+            border-color: rgba(6, 182, 212, 0.3);
+            transform: translateY(-2px);
+        }
+        .product-rank-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+        .product-rank-info {
+            min-width: 0;
+        }
+        .product-rank-name {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .product-rank-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 3px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .product-rank-right {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .product-rank-volume {
+            font-weight: 800;
+            font-size: 0.92rem;
+            color: #06b6d4;
+        }
+        .product-rank-rev {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+    </style>
+
+    <div class="dash-section-header dash-animate dash-delay-6">
+        <div class="dash-section-icon" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
+            <i class="fas fa-trophy"></i>
+        </div>
+        <h2>Sales & Team Performance</h2>
+        <span class="dash-section-badge">Ranked Analytics</span>
+    </div>
+
+    <div class="dashboard-grid-2col dash-animate dash-delay-6" style="margin-bottom: 24px;">
+        <!-- ── Salesman Performance Leaderboard Panel ── -->
+        <div class="dash-panel-card" style="border-left: 4px solid #f59e0b;">
+            <div class="dash-panel-header">
+                <div class="dash-panel-title-group">
+                    <div class="dash-panel-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;"><i class="fas fa-medal"></i></div>
+                    <h3 class="dash-panel-title">Sales Team Leaderboard</h3>
+                </div>
+                <span style="font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full); background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25);">Top Performers</span>
+            </div>
+
+            <div class="leaderboard-list">
+                <?php if (!empty($salesmanLeaderboard)): ?>
+                    <?php 
+                        $maxRev = max(array_column($salesmanLeaderboard, 'total_revenue')) ?: 1;
+                        $rank = 1;
+                        foreach ($salesmanLeaderboard as $sm): 
+                            $percent = min(100, round(($sm['total_revenue'] / $maxRev) * 100));
+                            $rankClass = $rank === 1 ? 'rank-1' : ($rank === 2 ? 'rank-2' : ($rank === 3 ? 'rank-3' : 'rank-other'));
+                            $medal = $rank === 1 ? '🥇' : ($rank === 2 ? '🥈' : ($rank === 3 ? '🥉' : '#' . $rank));
+                            $initials = strtoupper(substr($sm['salesman_name'] ?? 'U', 0, 2));
+                    ?>
+                        <div class="leaderboard-item">
+                            <div class="rank-badge <?php echo $rankClass; ?>">
+                                <?php echo $medal; ?>
+                            </div>
+                            <div class="leaderboard-avatar">
+                                <?php echo htmlspecialchars($initials); ?>
+                            </div>
+                            <div class="leaderboard-details">
+                                <div class="leaderboard-name-row">
+                                    <span class="leaderboard-name" title="<?php echo htmlspecialchars($sm['salesman_name']); ?>">
+                                        <?php echo htmlspecialchars($sm['salesman_name']); ?>
+                                        <span style="font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-muted); text-transform: capitalize; margin-left: 4px;"><?php echo htmlspecialchars($sm['user_role'] ?? 'Salesman'); ?></span>
+                                    </span>
+                                    <span class="leaderboard-revenue"><?php echo format_price($sm['total_revenue']); ?></span>
+                                </div>
+                                <div class="leaderboard-meta-row">
+                                    <span><i class="fas fa-receipt" style="margin-right: 4px;"></i><?php echo number_format($sm['invoice_count']); ?> Invoices</span>
+                                    <span>Avg: <?php echo format_price($sm['avg_order_value']); ?></span>
+                                </div>
+                                <div class="leaderboard-progress-bg" title="<?php echo $percent; ?>% of top revenue">
+                                    <div class="leaderboard-progress-bar" style="width: <?php echo $percent; ?>%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php 
+                        $rank++;
+                        endforeach; 
+                    ?>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+                        <i class="fas fa-trophy" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.3; display: block;"></i>
+                        No sales transactions recorded yet.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- ── Top-Selling Medicines Panel ── -->
+        <div class="dash-panel-card" style="border-left: 4px solid #10b981;">
+            <div class="dash-panel-header">
+                <div class="dash-panel-title-group">
+                    <div class="dash-panel-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;"><i class="fas fa-fire-alt"></i></div>
+                    <h3 class="dash-panel-title">Top-Selling Medicines</h3>
+                </div>
+                <a href="<?php echo url('/admin/reports'); ?>" class="dash-panel-action">
+                    <i class="fas fa-chart-pie"></i> Reports
+                </a>
+            </div>
+
+            <div class="leaderboard-list">
+                <?php if (!empty($topProductsStats)): ?>
+                    <?php 
+                        $pRank = 1;
+                        foreach ($topProductsStats as $prod): 
+                            $pRankClass = $pRank === 1 ? 'rank-1' : ($pRank === 2 ? 'rank-2' : ($pRank === 3 ? 'rank-3' : 'rank-other'));
+                    ?>
+                        <div class="product-rank-item">
+                            <div class="product-rank-left">
+                                <div class="rank-badge <?php echo $pRankClass; ?>">
+                                    #<?php echo $pRank; ?>
+                                </div>
+                                <div class="product-rank-info">
+                                    <div class="product-rank-name" title="<?php echo htmlspecialchars($prod['product_name']); ?>">
+                                        <?php echo htmlspecialchars($prod['product_name']); ?>
+                                        <?php if (!empty($prod['product_strength'])): ?>
+                                            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(<?php echo htmlspecialchars($prod['product_strength']); ?>)</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="product-rank-meta">
+                                        <?php if (!empty($prod['category_name'])): ?>
+                                            <span style="padding: 1px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.1); color: #3b82f6;"><?php echo htmlspecialchars($prod['category_name']); ?></span>
+                                        <?php endif; ?>
+                                        <span><i class="fas fa-boxes" style="margin-right: 3px;"></i>Stock: <strong style="color: <?php echo ($prod['current_stock'] <= 10) ? '#ef4444' : 'inherit'; ?>;"><?php echo number_format($prod['current_stock']); ?></strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="product-rank-right">
+                                <div class="product-rank-volume"><?php echo number_format($prod['units_sold']); ?> sold</div>
+                                <div class="product-rank-rev"><?php echo format_price($prod['total_revenue']); ?></div>
+                            </div>
+                        </div>
+                    <?php 
+                        $pRank++;
+                        endforeach; 
+                    ?>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+                        <i class="fas fa-pills" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.3; display: block;"></i>
+                        No product sales recorded yet.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
     <!-- ════════════ Bottom Two-Panel Layout ════════════ -->
     <div class="dash-section-header dash-animate dash-delay-7">
         <div class="dash-section-icon" style="background: rgba(139,92,246,0.12); color: #8b5cf6;">

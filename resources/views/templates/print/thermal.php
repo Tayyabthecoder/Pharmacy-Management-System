@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt #<?php echo str_pad($invoice['id'] ?? 0, 5, '0', STR_PAD_LEFT); ?></title>
+    <title>Receipt #<?php echo invoice_display_number($invoice); ?></title>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -168,7 +168,7 @@
         <!-- Metadata -->
         <div class="meta-grid">
             <div><span>Patient:</span> <?php echo htmlspecialchars($invoice['customer_name'] ?? 'Walk-in'); ?></div>
-            <div style="text-align: right;"><span>invoice no:</span> nv-<?php echo str_pad($invoice['id'] ?? 0, 4, '0', STR_PAD_LEFT); ?></div>
+            <div style="text-align: right;"><span>Invoice No:</span> <?php echo invoice_display_number($invoice); ?></div>
             <div><span>Date:</span> <?php echo date('d/m/Y', strtotime($invoice['created_at'] ?? 'now')); ?></div>
             <div style="text-align: right;"><span>Salesman:</span> <?php echo htmlspecialchars($invoice['salesman_name'] ?? 'Staff'); ?></div>
             

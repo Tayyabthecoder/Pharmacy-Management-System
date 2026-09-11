@@ -11,7 +11,7 @@ class BaseModel {
 
     public function __construct() {
         global $pdo;
-        $this->db = $pdo;
+        $this->db = $pdo ?? ($GLOBALS['pdo'] ?? null);
     }
 
     public function getDb() {

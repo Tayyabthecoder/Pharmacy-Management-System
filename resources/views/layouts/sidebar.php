@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 $role = $_SESSION['role'] ?? 'salesman';
+$uri = $uri ?? ($_SERVER['REQUEST_URI'] ?? '');
 ?>
 <aside class="sidebar">
     <div class="sidebar-header">
@@ -54,6 +55,9 @@ $isOwner = ($role === 'owner' || $username === 'owner' || ($_SESSION['user_id'] 
                 </li>
                 <li class="<?php echo strpos($uri, '/admin/reports') !== false ? 'active' : ''; ?>">
                     <a href="<?php echo URL_ROOT; ?>/admin/reports"><i class="fas fa-chart-line"></i> <span>Reports</span></a>
+                </li>
+                <li class="<?php echo strpos($uri, '/admin/audit_log') !== false ? 'active' : ''; ?>">
+                    <a href="<?php echo URL_ROOT; ?>/admin/audit_log"><i class="fas fa-history"></i> <span>Audit Log</span></a>
                 </li>
                 <li class="<?php echo strpos($uri, '/admin/notifications') !== false ? 'active' : ''; ?>">
                     <a href="<?php echo URL_ROOT; ?>/admin/notifications"><i class="fas fa-bell"></i> <span>Notifications</span></a>

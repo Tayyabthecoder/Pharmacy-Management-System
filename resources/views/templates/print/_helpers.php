@@ -11,6 +11,16 @@ if (!function_exists('format_currency')) {
     }
 }
 
+if (!function_exists('invoice_display_number')) {
+    function invoice_display_number($invoice) {
+        if (!empty($invoice['invoice_number'])) {
+            return htmlspecialchars($invoice['invoice_number']);
+        }
+        $prefix = (!empty($invoice['is_return'])) ? 'RET-' : 'INV-';
+        return $prefix . str_pad((string)($invoice['id'] ?? 0), 5, '0', STR_PAD_LEFT);
+    }
+}
+
 require_once BASE_PATH . '/resources/views/templates/print/partials/qrcode.php';
 require_once BASE_PATH . '/resources/views/templates/print/partials/status_badge.php';
 

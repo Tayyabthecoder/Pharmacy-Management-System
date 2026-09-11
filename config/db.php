@@ -60,41 +60,54 @@ if (FORCE_HTTPS && (!isset($_SERVER['HTTPS']) || $_SERVER['HTTPS'] !== 'on')) {
 // 5. Database Connection (PDO)
 // -----------------------------------------------------------------
 try {
-    $dbFile = BASE_PATH . '/database/database.sqlite';
-    
-    // In production (Desktop app), copy SQLite DB to a writable location 
-    // because Program Files / installation directories are read-only.
-    if (strpos(BASE_PATH, 'resources' . DIRECTORY_SEPARATOR . 'app') !== false || APP_ENV === 'production') {
-        $appData = getenv('APPDATA') ?: sys_get_temp_dir();
-        $writableDir = $appData . '/PMS';
-        
-        if (!is_dir($writableDir)) {
-            @mkdir($writableDir, 0777, true);
-        }
-        
-        $writableDbFile = $writableDir . '/database.sqlite';
-        
-        // Copy pristine DB on first run
-        if (!file_exists($writableDbFile) && file_exists($dbFile)) {
-            copy($dbFile, $writableDbFile);
-        }
-        
-        // Switch to the writable DB if available
-        if (file_exists($writableDbFile)) {
-            $dbFile = $writableDbFile;
-        }
-    }
+    $dbDriver = strtolower((string)env('DB_DRIVER', 'sqlite'));
 
-    $dsn = 'sqlite:' . $dbFile;
-    $pdo = new PDO($dsn, null, null, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
-    ]);
-    // Enable Write-Ahead Logging (WAL), normal sync, and foreign keys for concurrency & data integrity
-    $pdo->exec('PRAGMA journal_mode=WAL;');
-    $pdo->exec('PRAGMA synchronous=NORMAL;');
-    $pdo->exec('PRAGMA foreign_keys = ON;');
+    if ($dbDriver === 'mysql') {
+        $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', DB_HOST, DB_PORT, DB_NAME);
+        $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]);
+        $GLOBALS['pdo'] = $pdo;
+    } else {
+        $dbFile = BASE_PATH . '/database/database.sqlite';
+        
+        // In production (Desktop app), copy SQLite DB to a writable location 
+        // because Program Files / installation directories are read-only.
+        if (strpos(BASE_PATH, 'resources' . DIRECTORY_SEPARATOR . 'app') !== false || APP_ENV === 'production') {
+            $appData = getenv('APPDATA') ?: sys_get_temp_dir();
+            $writableDir = $appData . '/PMS';
+            
+            if (!is_dir($writableDir)) {
+                @mkdir($writableDir, 0777, true);
+            }
+            
+            $writableDbFile = $writableDir . '/database.sqlite';
+            
+            // Copy pristine DB on first run
+            if (!file_exists($writableDbFile) && file_exists($dbFile)) {
+                copy($dbFile, $writableDbFile);
+            }
+            
+            // Switch to the writable DB if available
+            if (file_exists($writableDbFile)) {
+                $dbFile = $writableDbFile;
+            }
+        }
+
+        $dsn = 'sqlite:' . $dbFile;
+        $pdo = new PDO($dsn, null, null, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]);
+        $GLOBALS['pdo'] = $pdo;
+        // Enable Write-Ahead Logging (WAL), normal sync, and foreign keys for concurrency & data integrity
+        $pdo->exec('PRAGMA journal_mode=WAL;');
+        $pdo->exec('PRAGMA synchronous=NORMAL;');
+        $pdo->exec('PRAGMA foreign_keys = ON;');
+    }
 } catch (PDOException $e) {
     error_log('[DB Error] ' . $e->getMessage());
     if (APP_DEBUG) {
@@ -187,7 +200,8 @@ function format_price($amount): string {
  */
 function url($path = '') {
     $path = ltrim($path, '/');
-    return URL_ROOT . '/' . $path;
+    $root = defined('URL_ROOT') ? URL_ROOT : '';
+    return $root ? ($root . '/' . $path) : ('/' . $path);
 }
 
 /**

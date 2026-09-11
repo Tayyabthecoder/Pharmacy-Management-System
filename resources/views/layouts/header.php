@@ -46,8 +46,15 @@ $zoomScale = $systemResolution / 100;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="<?php echo htmlspecialchars($themeColor); ?>">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><?php echo isset($pageTitle) ? $pageTitle . ' - ' . htmlspecialchars($companyName) : htmlspecialchars($companyName); ?></title>
     
+    <!-- PWA Web App Manifest -->
+    <link rel="manifest" href="<?php echo URL_ROOT; ?>/manifest.json">
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -85,6 +92,31 @@ $zoomScale = $systemResolution / 100;
             zoom: <?php echo $zoomScale; ?>;
         }
         <?php endif; ?>
+
+        /* Global Offline Banner Styling */
+        .pms-offline-banner {
+            display: none;
+            background: linear-gradient(90deg, #b45309, #d97706);
+            color: #ffffff;
+            padding: 10px 20px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 9999;
+            transition: all 0.3s ease;
+        }
+        .pms-offline-banner.active {
+            display: flex;
+        }
+        .pms-offline-banner.restored {
+            background: linear-gradient(90deg, #059669, #10b981);
+        }
     </style>
 
 </head>

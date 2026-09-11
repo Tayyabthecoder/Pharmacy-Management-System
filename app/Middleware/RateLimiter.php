@@ -5,20 +5,13 @@ namespace App\Middleware;
 use Exception;
 use PDO;
 use PDOException;
+use App\Support\QueryHelper;
 
 /**
  * RateLimiter
  *
- * Database-backed brute-force protection for the login endpoint.
- *
- * Tracks failed login attempts per IP address (and optionally per email).
- * After MAX_ATTEMPTS failures within the decay window, the IP is locked out
- * for DECAY_MINUTES minutes. All expired records are automatically ignored.
- *
- * Config (via .env):
- *   RATE_LIMIT_MAX_ATTEMPTS  — default 5
- *   RATE_LIMIT_DECAY_MINUTES — default 15
- *   RATE_LIMIT_BY_IP         — default true
+ * Granular, per-endpoint rate limiting & brute-force protection.
+ * Supports login attempt tracking and endpoint-specific throughput limits.
  */
 class RateLimiter {
 
@@ -28,8 +21,23 @@ class RateLimiter {
     protected bool   $byIp;
     protected string $ipAddress;
 
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo;
+    /**
+     * Endpoint-specific rate limiting configurations.
+     * Format: 'uri_prefix' => ['max' => int, 'window' => seconds]
+     */
+    public const ENDPOINT_LIMITS = [
+        '/login'                     => ['max' =>  10, 'window' => 300], // Brute-force tight window
+        '/api/products/autocomplete' => ['max' => 150, 'window' =>  60], // Fast typing search
+        '/api/products/scan'         => ['max' => 150, 'window' =>  60], // Barcode scanner rapid input
+        '/api/products/batches'      => ['max' => 120, 'window' =>  60], // Batches lookup
+        'default'                    => ['max' =>  60, 'window' =>  60], // General fallback
+    ];
+
+    public function __construct(?PDO $pdo = null) {
+        if ($pdo === null) {
+            global $pdo;
+        }
+        $this->pdo = $pdo ?? ($GLOBALS['pdo'] ?? (new \App\Models\Product())->getDb());
         
         $settingModel = new \App\Models\Setting();
         $dbMaxAttempts = $settingModel->get('max_login_attempts');
@@ -42,7 +50,139 @@ class RateLimiter {
     }
 
     // -----------------------------------------------------------------
-    // Public API
+    // Per-Endpoint Rate Limiting Engine
+    // -----------------------------------------------------------------
+
+    /**
+     * Resolve configuration for a given URI.
+     */
+    public static function getLimitConfig(string $uri): array {
+        $cleanUri = parse_url($uri, PHP_URL_PATH) ?: $uri;
+        
+        foreach (self::ENDPOINT_LIMITS as $prefix => $cfg) {
+            if ($prefix === 'default') continue;
+            if (str_contains($cleanUri, $prefix)) {
+                return $cfg;
+            }
+        }
+
+        return self::ENDPOINT_LIMITS['default'];
+    }
+
+    /**
+     * Evaluate rate limit for a specific request endpoint.
+     *
+     * @param string|null $uri
+     * @param string|null $ip
+     * @return array ['allowed' => bool, 'limit' => int, 'remaining' => int, 'retry_after' => int]
+     */
+    public function checkEndpoint(?string $uri = null, ?string $ip = null): array {
+        $targetUri = $uri ?? ($_SERVER['REQUEST_URI'] ?? '/');
+        $targetIp  = $ip ?? $this->ipAddress;
+        $config    = self::getLimitConfig($targetUri);
+
+        $maxRequests   = $config['max'];
+        $windowSeconds = $config['window'];
+        $cleanPath     = parse_url($targetUri, PHP_URL_PATH) ?: $targetUri;
+        $endpointKey   = substr(preg_replace('/[^a-zA-Z0-9_\-]/', '_', $cleanPath), 0, 50);
+
+        // Ensure rate_limits table exists
+        $this->ensureRateLimitTable();
+
+        $windowStart = date('Y-m-d H:i:s', time() - $windowSeconds);
+
+        // Query current hits in sliding window
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM endpoint_hits 
+             WHERE ip_address = :ip AND endpoint = :endpoint AND hit_at >= :window_start"
+        );
+        $stmt->execute([
+            'ip'           => $targetIp,
+            'endpoint'     => $endpointKey,
+            'window_start' => $windowStart
+        ]);
+        $currentHits = (int)$stmt->fetchColumn();
+
+        $allowed = $currentHits < $maxRequests;
+        $remaining = max(0, $maxRequests - $currentHits - 1);
+
+        if ($allowed) {
+            // Record this hit
+            $nowSql = QueryHelper::dateTimeNow();
+            $insert = $this->pdo->prepare(
+                "INSERT INTO endpoint_hits (ip_address, endpoint, hit_at) 
+                 VALUES (:ip, :endpoint, {$nowSql})"
+            );
+            $insert->execute([
+                'ip'       => $targetIp,
+                'endpoint' => $endpointKey
+            ]);
+            $retryAfter = 0;
+        } else {
+            // Determine retry after seconds from earliest hit
+            $earliestStmt = $this->pdo->prepare(
+                "SELECT hit_at FROM endpoint_hits 
+                 WHERE ip_address = :ip AND endpoint = :endpoint AND hit_at >= :window_start 
+                 ORDER BY hit_at ASC LIMIT 1"
+            );
+            $earliestStmt->execute([
+                'ip'           => $targetIp,
+                'endpoint'     => $endpointKey,
+                'window_start' => $windowStart
+            ]);
+            $earliestHit = $earliestStmt->fetchColumn();
+            $retryAfter = $earliestHit ? max(1, $windowSeconds - (time() - strtotime($earliestHit))) : $windowSeconds;
+        }
+
+        // Periodically prune older endpoint hits
+        if (mt_rand(1, 100) <= 5) {
+            $this->pruneEndpointHits();
+        }
+
+        return [
+            'allowed'     => $allowed,
+            'limit'       => $maxRequests,
+            'remaining'   => $remaining,
+            'retry_after' => $retryAfter,
+            'window'      => $windowSeconds
+        ];
+    }
+
+    /**
+     * Middleware entrypoint: checks limit, attaches headers, returns false & 429 if exceeded.
+     */
+    public function handle(?string $uri = null): bool {
+        $result = $this->checkEndpoint($uri);
+
+        if (!headers_sent()) {
+            header('X-RateLimit-Limit: ' . $result['limit']);
+            header('X-RateLimit-Remaining: ' . $result['remaining']);
+            if (!$result['allowed']) {
+                header('Retry-After: ' . $result['retry_after']);
+            }
+        }
+
+        if (!$result['allowed']) {
+            http_response_code(429);
+            $targetUri = $uri ?? ($_SERVER['REQUEST_URI'] ?? '');
+            if (str_contains($targetUri, '/api/')) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'error'       => 'Too Many Requests',
+                    'message'     => 'Rate limit exceeded. Please wait before retrying.',
+                    'retry_after' => $result['retry_after']
+                ]);
+            } else {
+                echo "<h1>429 - Too Many Requests</h1><p>Rate limit exceeded. Please try again in {$result['retry_after']} seconds.</p>";
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    // -----------------------------------------------------------------
+    // Login-Specific Brute Force API (Preserved for backward compatibility)
     // -----------------------------------------------------------------
 
     /**
@@ -50,10 +190,11 @@ class RateLimiter {
      */
     public function recordFailure(string $email = ''): void {
         $expiresAt = gmdate('Y-m-d H:i:s', time() + ($this->decayMinutes * 60));
+        $nowSql = QueryHelper::dateTimeNow();
 
         $stmt = $this->pdo->prepare(
             "INSERT INTO login_attempts (ip_address, email, attempted_at, expires_at)
-             VALUES (:ip, :email, strftime('%Y-%m-%d %H:%M:%S', 'now'), :expires)"
+             VALUES (:ip, :email, {$nowSql}, :expires)"
         );
         $stmt->execute([
             'ip'      => $this->ipAddress,
@@ -61,13 +202,9 @@ class RateLimiter {
             'expires' => $expiresAt,
         ]);
 
-        // Housekeeping: remove expired records older than 24 h to keep table lean
         $this->pruneExpired();
     }
 
-    /**
-     * Returns true if the current IP is locked out.
-     */
     /**
      * Returns true if the current IP or email is locked out.
      */
@@ -82,7 +219,6 @@ class RateLimiter {
         $ipRemaining = 0;
         $emailRemaining = 0;
 
-        // Check IP lockout remaining time
         $stmt = $this->pdo->prepare(
             "SELECT expires_at FROM login_attempts
              WHERE ip_address = :ip
@@ -99,7 +235,6 @@ class RateLimiter {
             }
         }
 
-        // Check Email lockout remaining time
         if (!empty($email)) {
             $stmt = $this->pdo->prepare(
                 "SELECT expires_at FROM login_attempts
@@ -135,7 +270,7 @@ class RateLimiter {
     }
 
     /**
-     * Clear all attempts for the current IP and email (call on successful login).
+     * Clear all attempts for the current IP and email.
      */
     public function clearAttempts(string $email = ''): void {
         if (!empty($email)) {
@@ -158,7 +293,6 @@ class RateLimiter {
      * How many non-expired attempts for this IP/email in the current window.
      */
     public function recentAttempts(string $email = ''): int {
-        // Query by IP
         $stmt = $this->pdo->prepare(
             "SELECT COUNT(*) FROM login_attempts
              WHERE ip_address = :ip
@@ -167,7 +301,6 @@ class RateLimiter {
         $stmt->execute(['ip' => $this->ipAddress]);
         $ipAttempts = (int) $stmt->fetchColumn();
 
-        // If email is provided, query by email and return the maximum
         if (!empty($email)) {
             $stmt = $this->pdo->prepare(
                 "SELECT COUNT(*) FROM login_attempts
@@ -191,24 +324,38 @@ class RateLimiter {
     }
 
     // -----------------------------------------------------------------
-    // Private helpers
+    // Internal Utilities
     // -----------------------------------------------------------------
 
     /**
-     * Resolve the real client IP, accounting for trusted proxies.
+     * Create endpoint_hits table if not already created.
+     */
+    protected function ensureRateLimitTable(): void {
+        $this->pdo->exec(
+            "CREATE TABLE IF NOT EXISTS endpoint_hits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address VARCHAR(45) NOT NULL,
+                endpoint VARCHAR(100) NOT NULL,
+                hit_at DATETIME NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_endpoint_hits_lookup ON endpoint_hits (ip_address, endpoint, hit_at);"
+        );
+    }
+
+    /**
+     * Resolve the real client IP.
      */
     protected function resolveIp(): string {
         $trusted = env('TRUSTED_PROXIES', false);
         if ($trusted) {
             $headers = [
-                'HTTP_CF_CONNECTING_IP',    // Cloudflare
-                'HTTP_X_FORWARDED_FOR',     // Standard proxy
+                'HTTP_CF_CONNECTING_IP',
+                'HTTP_X_FORWARDED_FOR',
                 'HTTP_X_REAL_IP',
             ];
 
             foreach ($headers as $header) {
                 if (!empty($_SERVER[$header])) {
-                    // X-Forwarded-For can be a comma-separated list; take first
                     $ip = trim(explode(',', $_SERVER[$header])[0]);
                     if (filter_var($ip, FILTER_VALIDATE_IP)) {
                         return $ip;
@@ -217,16 +364,26 @@ class RateLimiter {
             }
         }
 
-        return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     }
 
     /**
-     * Delete records that expired more than 24 hours ago.
+     * Delete expired login attempt records.
      */
     protected function pruneExpired(): void {
         $this->pdo->exec(
             "DELETE FROM login_attempts
              WHERE expires_at < datetime('now', '-24 hours')"
+        );
+    }
+
+    /**
+     * Delete endpoint hits older than 1 hour.
+     */
+    protected function pruneEndpointHits(): void {
+        $this->pdo->exec(
+            "DELETE FROM endpoint_hits
+             WHERE hit_at < datetime('now', '-1 hour')"
         );
     }
 }

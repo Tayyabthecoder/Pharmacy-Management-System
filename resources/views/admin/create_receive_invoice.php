@@ -280,6 +280,9 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
             </div>
 
             <div class="pos-shortcuts-legend">
+                <div class="shortcut-pill" onclick="openHotkeyModal()" style="cursor: pointer; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.35); color: #3b82f6;" title="View all keyboard shortcuts">
+                    <span class="shortcut-key">F1</span> Shortcuts
+                </div>
                 <div class="shortcut-pill">
                     <span class="shortcut-key">F2</span> Add Item
                 </div>
@@ -365,6 +368,69 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
                                 <i class="far fa-calendar-check pos-input-icon"></i>
                                 <input type="date" name="received_date" id="received_date" class="pos-input-field" value="<?php echo date('Y-m-d'); ?>" required>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supplier Payment & Credit Terms Card -->
+            <div class="pos-context-card" style="margin-bottom: 20px;">
+                <div class="pos-context-header">
+                    <div class="pos-context-title">
+                        <i class="fas fa-credit-card" style="color: var(--primary-color);"></i> Supplier Payment & Credit Terms
+                    </div>
+                    <span class="badge" id="paymentStatusBadge" style="background-color: #10b981; color: white; padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 0.8rem;">
+                        Paid in Full
+                    </span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: start;">
+                    <div class="pos-field-group">
+                        <label for="payment_status" class="pos-field-label">Payment Status <span class="text-danger">*</span></label>
+                        <div class="pos-input-wrapper">
+                            <i class="fas fa-wallet pos-input-icon"></i>
+                            <select name="payment_status" id="payment_status" class="pos-input-field" onchange="handlePaymentStatusChange()">
+                                <option value="paid" selected>Paid in Full (Settled Immediately)</option>
+                                <option value="partial">Partial Payment (Split Cash/Credit)</option>
+                                <option value="unpaid">Credit Purchase (Pay Later / Unpaid)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pos-field-group" id="amountPaidGroup">
+                        <label for="amount_paid" class="pos-field-label">Amount Paid Now (<?php echo currency_symbol(); ?>)</label>
+                        <div class="pos-input-wrapper">
+                            <i class="fas fa-money-bill-wave pos-input-icon"></i>
+                            <input type="number" name="amount_paid" id="amount_paid" class="pos-input-field" step="0.01" min="0" value="0.00" oninput="calculatePaymentBalance()" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="pos-field-group" id="paymentMethodGroup">
+                        <label for="payment_method" class="pos-field-label">Payment Method</label>
+                        <div class="pos-input-wrapper">
+                            <i class="fas fa-money-check pos-input-icon"></i>
+                            <select name="payment_method" id="payment_method" class="pos-input-field">
+                                <option value="cash" selected>Cash</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pos-field-group" id="dueDateGroup">
+                        <label for="payment_due_date" class="pos-field-label">Payment Due Date</label>
+                        <div class="pos-input-wrapper">
+                            <i class="far fa-calendar-times pos-input-icon"></i>
+                            <input type="date" name="payment_due_date" id="payment_due_date" class="pos-input-field">
+                        </div>
+                    </div>
+
+                    <div class="pos-field-group" style="grid-column: 1 / -1;">
+                        <label for="payment_notes" class="pos-field-label">Payment Notes / Ref (Optional)</label>
+                        <div class="pos-input-wrapper">
+                            <i class="fas fa-sticky-note pos-input-icon"></i>
+                            <input type="text" name="payment_notes" id="payment_notes" class="pos-input-field" placeholder="e.g., Paid via Cheque #10492 or Bank Ref TXN-9938">
                         </div>
                     </div>
                 </div>
@@ -607,6 +673,70 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
         if (subEl) subEl.textContent = subtotal.toFixed(2);
         if (taxEl) taxEl.textContent = taxAmount.toFixed(2);
         if (grandEl) grandEl.textContent = Math.round(grandTotal);
+
+        handlePaymentStatusChange();
+    }
+
+    function handlePaymentStatusChange() {
+        const status = document.getElementById('payment_status')?.value || 'paid';
+        const amountPaidInput = document.getElementById('amount_paid');
+        const badge = document.getElementById('paymentStatusBadge');
+        const dueDateGroup = document.getElementById('dueDateGroup');
+        const netAmount = parseFloat(document.getElementById('subTotal')?.textContent) || 0;
+
+        if (status === 'paid') {
+            if (amountPaidInput) {
+                amountPaidInput.value = netAmount.toFixed(2);
+                amountPaidInput.readOnly = true;
+                amountPaidInput.style.backgroundColor = 'var(--surface-hover)';
+            }
+            if (badge) {
+                badge.textContent = 'Paid in Full';
+                badge.style.backgroundColor = '#10b981';
+            }
+        } else if (status === 'partial') {
+            if (amountPaidInput) {
+                amountPaidInput.readOnly = false;
+                amountPaidInput.style.backgroundColor = 'var(--surface-color)';
+                // If empty or equal to net, set to half or prompt
+                const currentVal = parseFloat(amountPaidInput.value) || 0;
+                if (currentVal >= netAmount || currentVal <= 0) {
+                    amountPaidInput.value = (netAmount > 0 ? (netAmount / 2).toFixed(2) : '0.00');
+                }
+            }
+            if (badge) {
+                badge.textContent = 'Partial Credit';
+                badge.style.backgroundColor = '#f59e0b';
+            }
+        } else { // unpaid
+            if (amountPaidInput) {
+                amountPaidInput.value = '0.00';
+                amountPaidInput.readOnly = true;
+                amountPaidInput.style.backgroundColor = 'var(--surface-hover)';
+            }
+            if (badge) {
+                badge.textContent = 'Full Credit (Unpaid)';
+                badge.style.backgroundColor = '#ef4444';
+            }
+        }
+    }
+
+    function calculatePaymentBalance() {
+        const status = document.getElementById('payment_status')?.value || 'paid';
+        if (status === 'partial') {
+            const amountPaidInput = document.getElementById('amount_paid');
+            const netAmount = parseFloat(document.getElementById('subTotal')?.textContent) || 0;
+            let val = parseFloat(amountPaidInput.value) || 0;
+            if (val > netAmount) {
+                val = netAmount;
+                amountPaidInput.value = val.toFixed(2);
+            }
+            const badge = document.getElementById('paymentStatusBadge');
+            const due = Math.max(0, netAmount - val);
+            if (badge) {
+                badge.textContent = 'Partial (Due: ' + due.toFixed(2) + ')';
+            }
+        }
     }
 
     // Keyboard Shortcuts Engine
@@ -668,4 +798,5 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
     });
 </script>
 
+<?php require_once BASE_PATH . '/resources/views/admin/partials/hotkey_overlay.php'; ?>
 <?php require_once BASE_PATH . '/resources/views/layouts/footer.php'; ?>

@@ -9,6 +9,12 @@ if (isset($_SESSION['user_id']) && !isset($_SESSION['user_image_fetched'])) {
 }
 ?>
 <main class="main-content">
+    <!-- Offline Mode Banner -->
+    <div id="pmsOfflineBanner" class="pms-offline-banner">
+        <i class="fas fa-wifi-slash"></i>
+        <span id="pmsOfflineMsg">Offline Mode Active — POS operations remain operational with cached inventory.</span>
+    </div>
+
     <header class="topbar">
         <div class="topbar-left">
             <div class="toggle-sidebar">

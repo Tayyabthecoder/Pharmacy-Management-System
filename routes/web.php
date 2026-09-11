@@ -11,6 +11,10 @@ $router->post('/logout', 'AuthController@logout');
 // Admin
 $router->get('/admin/dashboard', 'AdminController@dashboard');
 $router->get('/admin/products', 'ProductController@index');
+$router->get('/admin/products/import', 'ProductController@importForm');
+$router->post('/admin/products/import', 'ProductController@import');
+$router->get('/admin/products/template', 'ProductController@exportTemplate');
+$router->get('/admin/products/label', 'ProductController@printLabel');
 $router->post('/admin/products/store', 'ProductController@store');
 $router->post('/admin/products/update', 'ProductController@update');
 $router->post('/admin/products/delete', 'ProductController@destroy');
@@ -41,6 +45,7 @@ $router->post('/admin/profile', 'ProfileController@profile');
 $router->get('/admin/reports', 'ReportController@index');
 $router->post('/admin/reports/generate', 'ReportController@generate');
 $router->get('/admin/expiry_report', 'ReportController@expiryReport');
+$router->get('/admin/audit_log', 'AuditLogController@index');
 $router->get('/admin/suppliers', 'SupplierController@index');
 $router->post('/admin/suppliers', 'SupplierController@index');
 
@@ -52,11 +57,14 @@ $router->get('/admin/create_return_receive_invoice', 'ReceiveInvoiceController@c
 $router->post('/admin/create_return_receive_invoice', 'ReceiveInvoiceController@createReturn');
 
 $router->get('/admin/view_receive_invoice', 'ReceiveInvoiceController@view');
+$router->post('/admin/receive_invoices/pay', 'ReceiveInvoiceController@recordPayment');
 
 $router->get('/invoice/print', 'InvoiceController@print');
 $router->get('/api/products/autocomplete', 'ProductController@autocomplete');
 $router->get('/api/products/search_generic', 'ProductController@searchGeneric');
 $router->get('/api/products/check_duplicate', 'ProductController@checkDuplicate');
+$router->get('/api/products/scan', 'ProductController@scanLookup');
+$router->get('/api/products/batches', 'ProductController@batchesApi');
 $router->get('/api/invoice/details', 'SaleController@detailsApi');
 $router->get('/api/receive_invoice/details', 'ReceiveInvoiceController@detailsApi');
 

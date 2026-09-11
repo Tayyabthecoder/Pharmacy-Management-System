@@ -324,6 +324,9 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
             </div>
 
             <div class="pos-shortcuts-legend">
+                <div class="shortcut-pill" onclick="openHotkeyModal()" style="cursor: pointer; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.35); color: #3b82f6;" title="View all keyboard shortcuts">
+                    <span class="shortcut-key">F1</span> Shortcuts
+                </div>
                 <div class="shortcut-pill">
                     <span class="shortcut-key">F2</span> Add Item
                 </div>
@@ -807,4 +810,5 @@ require_once BASE_PATH . '/resources/views/layouts/topbar.php';
     });
 </script>
 
+<?php require_once BASE_PATH . '/resources/views/admin/partials/hotkey_overlay.php'; ?>
 <?php require_once BASE_PATH . '/resources/views/layouts/footer.php'; ?>

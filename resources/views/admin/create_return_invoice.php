@@ -20,6 +20,9 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
             </div>
 
             <div class="pos-shortcuts-legend">
+                <div class="shortcut-pill" onclick="openHotkeyModal()" style="cursor: pointer; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.35); color: #3b82f6;" title="View all keyboard shortcuts">
+                    <span class="shortcut-key">F1</span> Shortcuts
+                </div>
                 <div class="shortcut-pill">
                     <span class="shortcut-key">F2</span> Add Item
                 </div>
@@ -47,11 +50,11 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
                 <div class="pos-context-grid" style="grid-template-columns: 1fr 1.5fr 250px;">
                     <div class="pos-field-group">
                         <label for="reference_invoice_id" class="pos-field-label">
-                            <i class="fas fa-receipt" style="color: var(--primary-color);"></i> Original Invoice ID
+                            <i class="fas fa-receipt" style="color: var(--primary-color);"></i> Original Invoice #
                         </label>
                         <div class="pos-input-wrapper">
                             <i class="fas fa-search pos-input-icon"></i>
-                            <input type="number" id="reference_invoice_id" class="pos-input-field" placeholder="Enter Invoice ID" value="" onkeydown="if(event.key==='Enter'){event.preventDefault(); fetchReferenceInvoice();}">
+                            <input type="text" name="original_invoice_id" id="reference_invoice_id" class="pos-input-field" placeholder="e.g. INV-00001 or ID" value="" onkeydown="if(event.key==='Enter'){event.preventDefault(); fetchReferenceInvoice();}">
                             <button type="button" class="pos-quick-btn" style="position: absolute; right: 6px;" onclick="fetchReferenceInvoice()">
                                 Fetch
                             </button>
@@ -347,12 +350,12 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
         }
     }
 
-    // Auto-fill logic from reference invoice ID
+    // Auto-fill logic from reference invoice ID or Invoice Number
     function fetchReferenceInvoice() {
         const id = document.getElementById('reference_invoice_id').value.trim();
         if (!id) return;
         
-        fetch('<?php echo URL_ROOT; ?>/api/invoice/details?id=' + id)
+        fetch('<?php echo URL_ROOT; ?>/api/invoice/details?id=' + encodeURIComponent(id))
             .then(res => res.json())
             .then(data => {
                 if (!data.success) {
@@ -360,6 +363,7 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
                     return;
                 }
                 
+                document.getElementById('reference_invoice_id').value = data.invoice.invoice_number || data.invoice.id;
                 document.getElementById('customer_name').value = data.invoice.customer_name || '';
                 document.getElementById('invoiceItems').innerHTML = '';
                 
@@ -402,7 +406,7 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
                             </td>
                             <td><input type="number" class="pos-cell-input retail-price-input" step="0.01" readonly tabIndex="-1" value="${price.toFixed(2)}"></td>
                             <td><input type="number" class="pos-cell-input discount-input" step="1" min="0" max="100" value="${Math.round(discountPct)}" oninput="calculateRow('${rowId}')" ${isSalesman && !salesmanCanDiscount ? 'readonly' : ''}></td>
-                            <td><input type="number" name="quantity[]" class="pos-cell-input qty-input" min="1" value="${qty}" required oninput="calculateRow('${rowId}')" onfocus="this.select()"></td>
+                            <td><input type="number" name="quantity[]" class="pos-cell-input qty-input" min="1" max="${qty}" value="${qty}" title="Max returnable: ${qty}" required oninput="calculateRow('${rowId}')" onfocus="this.select()"></td>
                             <td>
                                 <input type="hidden" name="price[]" class="effective-price-input">
                                 <input type="number" class="pos-cell-input subtotal-input subtotal-val" readonly tabIndex="-1" value="${subtotal.toFixed(2)}">
@@ -483,5 +487,6 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
     };
 </script>
 
+<?php require_once BASE_PATH . '/resources/views/admin/partials/hotkey_overlay.php'; ?>
 <?php require_once BASE_PATH . '/resources/views/layouts/footer.php'; ?>
 

@@ -164,7 +164,8 @@ class SalesmanController {
                     (float)($_POST['tax_rate'] ?? 0),
                     0,
                     trim($_POST['admin_email'] ?? ''),
-                    trim($_POST['admin_password'] ?? '')
+                    trim($_POST['admin_password'] ?? ''),
+                    !empty($_POST['original_invoice_id']) ? trim($_POST['original_invoice_id']) : null
                 );
 
                 $action = $_POST['action'] ?? 'save';

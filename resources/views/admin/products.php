@@ -452,6 +452,9 @@ $expMed = $summaryStats['expiring'] ?? 0;
                 <i class="fas fa-tags"></i> Manage Categories & Generics
             </a>
             <?php endif; ?>
+            <a href="<?php echo url('/admin/products/import'); ?>" class="btn" style="background: #10b981; color: white; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; border-radius: 12px; padding: 11px 18px; font-weight: 600;">
+                <i class="fas fa-file-import"></i> Import CSV
+            </a>
             <button class="btn-primary-glow" id="openAddModal">
                 <i class="fas fa-plus-circle"></i> Add Medicine
             </button>
@@ -607,11 +610,14 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                     <?php else: ?>
                                         <span class="med-pill-tag stock-ok"><i class="fas fa-check-circle"></i> Stock: <?php echo $prod['quantity']; ?></span>
                                     <?php endif; ?>
-
                                     <?php if ($isExpired): ?>
                                         <span class="med-pill-tag exp-danger"><i class="fas fa-calendar-times"></i> Expired</span>
                                     <?php elseif ($isNearExpiry): ?>
                                         <span class="med-pill-tag exp-warning"><i class="fas fa-clock"></i> Expiring Soon</span>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($prod['is_prescription_required'])): ?>
+                                        <span class="med-pill-tag" style="background: rgba(239, 68, 68, 0.15); color: #dc2626;"><i class="fas fa-prescription"></i> Rx Required</span>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -635,7 +641,7 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                 <span>
                                     <?php if (!empty($prod['expiry_date'])): ?>
                                         <strong class="<?php echo $isExpired ? 'text-danger' : ($isNearExpiry ? 'text-warning' : ''); ?>">
-                                            <?php echo date('M d, Y', strtotime($prod['expiry_date'])); ?>
+                                             <?php echo date('M d, Y', strtotime($prod['expiry_date'])); ?>
                                         </strong>
                                     <?php else: ?>
                                         -
@@ -653,7 +659,13 @@ $expMed = $summaryStats['expiring'] ?? 0;
                             <?php endif; ?>
                         </div>
 
-                        <div class="action-btns">
+                        <div class="action-btns" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            <a href="<?php echo url('/admin/products/label?id=' . $prod['id']); ?>" target="_blank" class="btn btn-sm" style="background: #f1f5f9; color: #334155; padding: 5px 8px;" title="Print Barcode Label">
+                                <i class="fas fa-barcode"></i>
+                            </a>
+                            <button class="btn btn-sm view-batches-btn" data-id="<?php echo $prod['id']; ?>" data-name="<?php echo htmlspecialchars($prod['name']); ?>" style="background: #e0f2fe; color: #0369a1; padding: 5px 8px;" title="View FEFO Batches">
+                                <i class="fas fa-layer-group"></i>
+                            </button>
                             <button class="btn btn-sm btn-edit edit-btn" 
                                     data-id="<?php echo $prod['id']; ?>"
                                     data-name="<?php echo htmlspecialchars($prod['name']); ?>"
@@ -668,8 +680,10 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                     data-cost="<?php echo $prod['cost_price'] ?? '0.00'; ?>"
                                     data-qty="<?php echo $prod['quantity'] ?? '0'; ?>"
                                     data-minstock="<?php echo $prod['min_stock_level'] ?? '10'; ?>"
+                                    data-rx="<?php echo !empty($prod['is_prescription_required']) ? '1' : '0'; ?>"
+                                    data-barcode="<?php echo htmlspecialchars($prod['barcode'] ?? ''); ?>"
                                     title="Edit Medicine">
-                                <i class="fas fa-edit"></i> Edit
+                                <i class="fas fa-edit"></i>
                             </button>
                             <button class="btn btn-sm btn-delete delete-btn" 
                                     data-id="<?php echo $prod['id']; ?>"
@@ -740,6 +754,9 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                 <?php endif; ?>
                                 <td>
                                     <strong class="prod-name-text"><?php echo htmlspecialchars($prod['name']); ?></strong>
+                                    <?php if (!empty($prod['is_prescription_required'])): ?>
+                                        <span class="badge" style="background-color: #ef4444; color: white; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; margin-left: 4px; font-weight: 600;" title="Prescription Required"><i class="fas fa-prescription"></i> Rx</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><span class="text-muted" style="font-style: italic"><?php echo htmlspecialchars($prod['generic_name'] ?? '-'); ?></span></td>
                                 <td><?php echo htmlspecialchars($prod['category_name'] ?? '-'); ?> / <?php echo htmlspecialchars($prod['strength'] ?? '-'); ?></td>
@@ -762,7 +779,13 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                     </span>
                                 </td>
                                 <td>
-                                    <div class="action-btns">
+                                    <div class="action-btns" style="display: flex; gap: 4px; align-items: center;">
+                                        <a href="<?php echo url('/admin/products/label?id=' . $prod['id']); ?>" target="_blank" class="btn btn-sm" style="background: #f1f5f9; color: #334155; padding: 5px 8px;" title="Print Barcode Label">
+                                            <i class="fas fa-barcode"></i>
+                                        </a>
+                                        <button class="btn btn-sm view-batches-btn" data-id="<?php echo $prod['id']; ?>" data-name="<?php echo htmlspecialchars($prod['name']); ?>" style="background: #e0f2fe; color: #0369a1; padding: 5px 8px;" title="View FEFO Batches">
+                                            <i class="fas fa-layer-group"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-edit edit-btn" 
                                                 data-id="<?php echo $prod['id']; ?>"
                                                 data-name="<?php echo htmlspecialchars($prod['name']); ?>"
@@ -776,7 +799,10 @@ $expMed = $summaryStats['expiring'] ?? 0;
                                                 data-tradprice="<?php echo $prod['trad_price'] ?? '0.00'; ?>"
                                                 data-cost="<?php echo $prod['cost_price'] ?? '0.00'; ?>"
                                                 data-qty="<?php echo $prod['quantity'] ?? '0'; ?>"
-                                                data-minstock="<?php echo $prod['min_stock_level'] ?? '10'; ?>">
+                                                data-minstock="<?php echo $prod['min_stock_level'] ?? '10'; ?>"
+                                                data-rx="<?php echo !empty($prod['is_prescription_required']) ? '1' : '0'; ?>"
+                                                data-barcode="<?php echo htmlspecialchars($prod['barcode'] ?? ''); ?>"
+                                                title="Edit Medicine">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         <button class="btn btn-sm btn-delete delete-btn" 
@@ -879,6 +905,13 @@ $expMed = $summaryStats['expiring'] ?? 0;
                         </select>
                     </div>
                 </div>
+
+                <div class="form-group" style="margin-top: 10px; background: rgba(239, 68, 68, 0.05); padding: 12px 14px; border-radius: 10px; border: 1px dashed rgba(239, 68, 68, 0.3);">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0; font-size: 0.9rem; color: var(--text-color, #1e293b);">
+                        <input type="checkbox" name="is_prescription_required" id="prodRxRequired" value="1" style="width: 18px; height: 18px; accent-color: #ef4444; cursor: pointer;">
+                        <span><i class="fas fa-prescription" style="color: #ef4444;"></i> <strong>Prescription Required (Rx)</strong> — POS checkout requires Doctor Name & License</span>
+                    </label>
+                </div>
             </div>
 
             <!-- STEP 2: INVENTORY -->
@@ -910,6 +943,15 @@ $expMed = $summaryStats['expiring'] ?? 0;
                     <div class="form-group">
                         <label for="min_stock_level">Min Stock Alert Level</label>
                         <input type="number" name="min_stock_level" id="prodMinStock" class="form-control" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="barcode">Barcode (EAN-13 / Code128)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" name="barcode" id="prodBarcode" class="form-control" placeholder="Scan or enter barcode">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('prodBarcode').value='890'+Math.floor(10000000+Math.random()*90000000)" style="white-space: nowrap; padding: 0 12px;" title="Auto-generate barcode">
+                                <i class="fas fa-magic"></i> Auto
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -980,6 +1022,24 @@ $expMed = $summaryStats['expiring'] ?? 0;
                 <button type="submit" class="btn btn-danger" style="background-color: var(--danger-color, #ef4444); color: white">Delete</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- FEFO Batches Modal -->
+<div id="batchesModal" class="modal">
+    <div class="modal-content" style="max-width: 720px">
+        <span class="close-modal" id="closeBatchesModal">&times;</span>
+        <div class="modal-header">
+            <h2 class="modal-title" id="batchesModalTitle"><i class="fas fa-layer-group" style="color: #2563eb; margin-right: 8px;"></i> Batch Stock Details</h2>
+        </div>
+        <div style="padding: 15px 0;" id="batchesModalBody">
+            <div style="text-align: center; padding: 20px; color: #64748b;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i> Loading batch data...
+            </div>
+        </div>
+        <div class="modal-footer" style="justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="batchesModal.style.display='none'">Close</button>
+        </div>
     </div>
 </div>
 
@@ -1350,6 +1410,12 @@ $expMed = $summaryStats['expiring'] ?? 0;
         }
         document.getElementById('prodQty').value = "";
         document.getElementById('prodMinStock').value = "10";
+        if (document.getElementById('prodRxRequired')) {
+            document.getElementById('prodRxRequired').checked = false;
+        }
+        if (document.getElementById('prodBarcode')) {
+            document.getElementById('prodBarcode').value = "";
+        }
         document.getElementById('modalBtn').textContent = "Save Medicine";
         
         if (window.tsGeneric) window.tsGeneric.clear();
@@ -1372,6 +1438,7 @@ $expMed = $summaryStats['expiring'] ?? 0;
             
             if(document.getElementById('prodBatch')) document.getElementById('prodBatch').value = this.getAttribute('data-batch') || "";
             if(document.getElementById('prodExpiry')) document.getElementById('prodExpiry').value = this.getAttribute('data-expiry') || "";
+            if(document.getElementById('prodBarcode')) document.getElementById('prodBarcode').value = this.getAttribute('data-barcode') || "";
             
             if (window.tsGeneric) window.tsGeneric.setValue(this.getAttribute('data-generic'));
             else document.getElementById('prodGeneric').value = this.getAttribute('data-generic');
@@ -1389,6 +1456,9 @@ $expMed = $summaryStats['expiring'] ?? 0;
             }
             document.getElementById('prodQty').value = this.getAttribute('data-qty');
             document.getElementById('prodMinStock').value = this.getAttribute('data-minstock');
+            if (document.getElementById('prodRxRequired')) {
+                document.getElementById('prodRxRequired').checked = (this.getAttribute('data-rx') === '1');
+            }
             document.getElementById('modalBtn').textContent = "Update Medicine";
             
             if (typeof checkProfitMargin === 'function') {
@@ -1398,6 +1468,77 @@ $expMed = $summaryStats['expiring'] ?? 0;
             goToStep(1); // Reset wizard
             productModal.style.display = "block";
         }
+    });
+
+    // Batches Mode
+    const batchesModal = document.getElementById('batchesModal');
+    const closeBatchesModal = document.getElementById('closeBatchesModal');
+    if (closeBatchesModal && batchesModal) {
+        closeBatchesModal.onclick = function() { batchesModal.style.display = 'none'; };
+    }
+
+    document.querySelectorAll('.view-batches-btn').forEach(btn => {
+        btn.onclick = function() {
+            const pId = this.getAttribute('data-id');
+            const pName = this.getAttribute('data-name');
+            const modalTitle = document.getElementById('batchesModalTitle');
+            const modalBody = document.getElementById('batchesModalBody');
+
+            if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-layer-group" style="color: #2563eb; margin-right: 8px;"></i> FEFO Batches: ${escapeHtml(pName)}`;
+            if (modalBody) modalBody.innerHTML = `<div style="text-align: center; padding: 20px; color: #64748b;"><i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i> Loading batch data...</div>`;
+            
+            if (batchesModal) batchesModal.style.display = 'block';
+
+            fetch(`<?php echo url('/api/products/batches?id='); ?>${pId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.batches && data.batches.length > 0) {
+                        let html = `
+                            <table class="table" style="width: 100%; font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>Batch Number</th>
+                                        <th>Expiry Date</th>
+                                        <th style="text-align: right;">Remaining Qty</th>
+                                        <th style="text-align: right;">Cost Price</th>
+                                        <th>Receive Ref / Supplier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        const today = new Date().toISOString().split('T')[0];
+                        data.batches.forEach(b => {
+                            const isExp = b.expiry_date && b.expiry_date <= today;
+                            const isZero = parseInt(b.quantity) <= 0;
+                            html += `
+                                <tr style="${isExp ? 'background: rgba(239, 68, 68, 0.06);' : (isZero ? 'opacity: 0.6;' : '')}">
+                                    <td><strong><code>${escapeHtml(b.batch_number || 'DEFAULT')}</code></strong></td>
+                                    <td>
+                                        ${b.expiry_date ? `<span class="${isExp ? 'text-danger font-weight-bold' : ''}">${escapeHtml(b.expiry_date)} ${isExp ? '(Expired)' : ''}</span>` : '<span class="text-muted">No Expiry</span>'}
+                                    </td>
+                                    <td style="text-align: right; font-weight: 700;">
+                                        <span class="${parseInt(b.quantity) <= 0 ? 'text-muted' : 'text-success'}">${escapeHtml(b.quantity)}</span>
+                                    </td>
+                                    <td style="text-align: right;">${parseFloat(b.cost_price || 0).toFixed(2)}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            ${b.receive_invoice_number ? `<i class="fas fa-truck-loading"></i> ${escapeHtml(b.receive_invoice_number)}` : 'Manual / Initial'}
+                                            ${b.supplier_name ? ` (${escapeHtml(b.supplier_name)})` : ''}
+                                        </small>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        html += `</tbody></table>`;
+                        modalBody.innerHTML = html;
+                    } else {
+                        modalBody.innerHTML = `<div style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-box-open" style="font-size: 32px; margin-bottom: 8px; display: block;"></i> No active or historical batches recorded for this medicine.</div>`;
+                    }
+                })
+                .catch(err => {
+                    modalBody.innerHTML = `<div class="alert alert-danger">Error loading batch information.</div>`;
+                });
+        };
     });
 
     // Delete Mode
@@ -1413,6 +1554,7 @@ $expMed = $summaryStats['expiring'] ?? 0;
         span.onclick = function() {
             productModal.style.display = "none";
             deleteModal.style.display = "none";
+            if (batchesModal) batchesModal.style.display = "none";
             if (typeof duplicateMedicineModal !== 'undefined' && duplicateMedicineModal) {
                 duplicateMedicineModal.style.display = "none";
             }
@@ -1422,6 +1564,7 @@ $expMed = $summaryStats['expiring'] ?? 0;
     window.onclick = function(event) {
         if (event.target == productModal) productModal.style.display = "none";
         if (event.target == deleteModal) deleteModal.style.display = "none";
+        if (batchesModal && event.target == batchesModal) batchesModal.style.display = "none";
         if (typeof duplicateMedicineModal !== 'undefined' && event.target == duplicateMedicineModal) {
             duplicateMedicineModal.style.display = "none";
         }

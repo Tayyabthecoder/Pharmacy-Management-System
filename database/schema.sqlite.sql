@@ -64,11 +64,26 @@ CREATE TABLE `products` (
   `cost_price` decimal(10,2) DEFAULT 0.00,
   `quantity` INTEGER DEFAULT 0,
   `min_stock_level` INTEGER DEFAULT 10,
+  `is_prescription_required` TINYINT(1) NOT NULL DEFAULT 0,
+  `barcode` varchar(100) DEFAULT NULL,
   `image` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp,
   FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`generic_id`) REFERENCES `generics` (`id`) ON DELETE SET NULL
+);
+
+CREATE TABLE `product_batches` (
+  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+  `product_id` INTEGER NOT NULL,
+  `batch_number` varchar(100) DEFAULT NULL,
+  `expiry_date` date DEFAULT NULL,
+  `quantity` INTEGER NOT NULL DEFAULT 0,
+  `cost_price` decimal(10,2) DEFAULT 0.00,
+  `receive_invoice_id` INTEGER DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp,
+  FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`receive_invoice_id`) REFERENCES `receive_invoices` (`id`) ON DELETE SET NULL
 );
 
 CREATE TABLE `inventory_logs` (
@@ -84,6 +99,7 @@ CREATE TABLE `inventory_logs` (
 
 CREATE TABLE `invoices` (
   `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+  `invoice_number` varchar(50) NOT NULL UNIQUE,
   `user_id` INTEGER DEFAULT NULL,
   `customer_name` varchar(100) DEFAULT NULL,
   `total_amount` decimal(10,2) NOT NULL,
@@ -91,8 +107,10 @@ CREATE TABLE `invoices` (
   `doctor_license` varchar(50) DEFAULT NULL,
   `tax_amount` decimal(10,2) DEFAULT 0.00,
   `is_return` TINYINT(1) DEFAULT 0,
+  `original_invoice_id` INTEGER DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp,
-  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`original_invoice_id`) REFERENCES `invoices` (`id`) ON DELETE SET NULL
 );
 
 CREATE TABLE `invoice_items` (
@@ -137,11 +155,29 @@ CREATE TABLE `receive_invoices` (
   `net_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
   `reference_number` varchar(100) NOT NULL DEFAULT 'N/A',
   `status` varchar(20) NOT NULL DEFAULT 'received',
+  `payment_status` varchar(20) NOT NULL DEFAULT 'paid',
+  `payment_due_date` date DEFAULT NULL,
+  `amount_paid` decimal(10,2) NOT NULL DEFAULT 0.00,
   `received_date` date NOT NULL,
   `is_return` TINYINT(1) DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp,
   FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+
+CREATE TABLE `supplier_payments` (
+  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+  `receive_invoice_id` INTEGER NOT NULL,
+  `supplier_id` INTEGER NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `payment_date` date NOT NULL,
+  `payment_method` varchar(50) NOT NULL DEFAULT 'cash',
+  `notes` text DEFAULT NULL,
+  `created_by` INTEGER DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp,
+  FOREIGN KEY (`receive_invoice_id`) REFERENCES `receive_invoices` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
 
 CREATE TABLE `receive_invoice_items` (
@@ -162,3 +198,4 @@ CREATE TABLE `system_settings` (
   `meta_key` varchar(50) NOT NULL UNIQUE,
   `meta_value` text DEFAULT NULL
 );
+

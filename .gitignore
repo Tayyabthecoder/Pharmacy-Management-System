@@ -49,6 +49,8 @@ uploads/
 *.log
 logs/
 storage/logs/
+storage/cache/
+.phpunit.cache/
 
 # ----- OS & Editor files ----------------------------------------
 .DS_Store

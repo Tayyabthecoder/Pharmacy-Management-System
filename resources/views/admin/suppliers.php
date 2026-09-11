@@ -771,7 +771,7 @@ function getInitials($name) {
     <?php endif; ?>
 
     <!-- KPI Summary Grid -->
-    <div class="sup-kpi-grid">
+    <div class="sup-kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="sup-kpi-card suppliers">
             <div class="sup-kpi-icon blue">
                 <i class="fas fa-truck-field"></i>
@@ -794,6 +794,17 @@ function getInitials($name) {
             </div>
         </div>
 
+        <div class="sup-kpi-card" style="border-left: 4px solid #ef4444;">
+            <div class="sup-kpi-icon" style="background: rgba(239, 68, 68, 0.12); color: #ef4444;">
+                <i class="fas fa-hand-holding-usd"></i>
+            </div>
+            <div class="sup-kpi-info">
+                <h4>Outstanding Payables</h4>
+                <div class="sup-kpi-value" style="color: #ef4444; font-size: 1.45rem;"><?php echo format_price($totalOutstandingCredit ?? 0); ?></div>
+                <div class="sup-kpi-subtext"><i class="fas fa-clock" style="color:#ef4444;"></i> Total Credit Due</div>
+            </div>
+        </div>
+
         <div class="sup-kpi-card active-rate">
             <div class="sup-kpi-icon green">
                 <i class="fas fa-chart-pie"></i>
@@ -801,18 +812,7 @@ function getInitials($name) {
             <div class="sup-kpi-info">
                 <h4>Active Partner Rate</h4>
                 <div class="sup-kpi-value"><?php echo $actRate; ?>%</div>
-                <div class="sup-kpi-subtext"><?php echo $actPartners; ?> of <?php echo $totPartners; ?> Partners Operational</div>
-            </div>
-        </div>
-
-        <div class="sup-kpi-card attention">
-            <div class="sup-kpi-icon amber">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <div class="sup-kpi-info">
-                <h4>Inactive Accounts</h4>
-                <div class="sup-kpi-value"><?php echo $inactPartners; ?></div>
-                <div class="sup-kpi-subtext">Partners Needing Review</div>
+                <div class="sup-kpi-subtext"><?php echo $actPartners; ?> of <?php echo $totPartners; ?> Operational</div>
             </div>
         </div>
     </div>
@@ -828,6 +828,12 @@ function getInitials($name) {
                 <button type="button" class="sup-tab-btn <?php echo $activeTab === 'companies' ? 'active' : ''; ?>" data-tab="companies" onclick="switchTab('companies')">
                     <i class="fas fa-building"></i> Companies
                     <span class="sup-tab-badge"><?php echo count($companies); ?></span>
+                </button>
+                <button type="button" class="sup-tab-btn <?php echo $activeTab === 'credit' ? 'active' : ''; ?>" data-tab="credit" onclick="switchTab('credit')">
+                    <i class="fas fa-file-invoice-dollar"></i> Credit & Balances
+                    <span class="sup-tab-badge" style="<?php echo (($totalOutstandingCredit ?? 0) > 0) ? 'background: rgba(239, 68, 68, 0.15); color: #ef4444;' : ''; ?>">
+                        <?php echo count(array_filter($creditSummary ?? [], fn($c) => (float)$c['total_due'] > 0)); ?> Due
+                    </span>
                 </button>
             </div>
 
@@ -902,11 +908,22 @@ function getInitials($name) {
                             </div>
                         </div>
 
+                        <?php 
+                            $supCredit = $supplierCreditMap[$sup['id']] ?? null;
+                            $supDue = (float)($supCredit['total_due'] ?? 0);
+                        ?>
                         <div class="partner-card-footer">
-                            <span class="status-pill <?php echo $sup['status'] === 'active' ? 'active' : 'inactive'; ?>">
-                                <span class="status-dot"></span>
-                                <?php echo ucfirst($sup['status']); ?>
-                            </span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="status-pill <?php echo $sup['status'] === 'active' ? 'active' : 'inactive'; ?>">
+                                    <span class="status-dot"></span>
+                                    <?php echo ucfirst($sup['status']); ?>
+                                </span>
+                                <?php if ($supDue > 0): ?>
+                                    <span class="badge" style="background: rgba(239, 68, 68, 0.12); color: #ef4444; font-size: 0.72rem; padding: 3px 6px; border-radius: 4px; font-weight: 600;" title="Outstanding credit balance due">
+                                        Due: <?php echo format_price($supDue); ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
 
                             <div class="action-btns-wrapper">
                                 <button class="btn-icon-action view view-btn"
@@ -1233,6 +1250,108 @@ function getInitials($name) {
             </div>
         <?php endif; ?>
     </div>
+
+    <!-- SUPPLIER CREDIT & BALANCES SECTION -->
+    <div id="credit" class="tab-content <?php echo $activeTab === 'credit' ? 'active' : ''; ?>">
+        <div class="sup-table-card" style="margin-bottom: 20px;">
+            <div style="padding: 20px 24px; border-bottom: 1px solid var(--card-border, #e2e8f0); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--text-color);">
+                        <i class="fas fa-file-invoice-dollar" style="color: #3b82f6;"></i> Supplier Accounts & Credit Ledger
+                    </h3>
+                    <p class="text-muted" style="margin: 4px 0 0 0; font-size: 0.85rem;">Comprehensive overview of procurement volume, settlements made, and outstanding balances per supplier</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <a href="<?php echo url('/admin/receive_invoices?payment_status=unpaid'); ?>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 8px 14px; border-radius: 8px;">
+                        <i class="fas fa-filter"></i> View All Unpaid Shipments
+                    </a>
+                    <a href="<?php echo url('/admin/create_receive_invoice'); ?>" class="btn btn-primary" style="font-size: 0.85rem; padding: 8px 14px; border-radius: 8px;">
+                        <i class="fas fa-plus"></i> New Stock Shipment
+                    </a>
+                </div>
+            </div>
+
+            <div class="sup-table-responsive">
+                <table class="sup-custom-table" id="creditTable">
+                    <thead>
+                        <tr>
+                            <th>Supplier Name</th>
+                            <th>Contact Phone</th>
+                            <th style="text-align: right;">Total Purchases</th>
+                            <th style="text-align: right;">Total Paid</th>
+                            <th style="text-align: right;">Current Balance Due</th>
+                            <th style="text-align: center;">Account Status</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($creditSummary)): ?>
+                            <?php foreach ($creditSummary as $cs): 
+                                $due = (float)$cs['total_due'];
+                                $purchases = (float)$cs['total_purchases'];
+                                $paid = (float)$cs['total_paid'];
+                            ?>
+                                <tr data-name="<?php echo strtolower(htmlspecialchars($cs['supplier_name'])); ?>"
+                                    data-phone="<?php echo strtolower(htmlspecialchars($cs['supplier_phone'] ?? '')); ?>"
+                                    data-status="<?php echo $due > 0 ? 'due' : 'settled'; ?>">
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div class="partner-avatar supplier-avatar" style="width: 36px; height: 36px; font-size: 0.85rem; border-radius: 8px;">
+                                                <?php echo getInitials($cs['supplier_name']); ?>
+                                            </div>
+                                            <div>
+                                                <strong><?php echo htmlspecialchars($cs['supplier_name']); ?></strong>
+                                                <div class="text-muted" style="font-size: 0.75rem;">#SUP-<?php echo sprintf('%03d', $cs['supplier_id']); ?></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><?php echo !empty($cs['supplier_phone']) ? htmlspecialchars($cs['supplier_phone']) : '<span class="text-muted">—</span>'; ?></td>
+                                    <td style="text-align: right; font-weight: 600;"><?php echo format_price($purchases); ?></td>
+                                    <td style="text-align: right; font-weight: 600; color: #10b981;"><?php echo format_price($paid); ?></td>
+                                    <td style="text-align: right; font-weight: 700; font-size: 1rem; color: <?php echo $due > 0 ? '#ef4444' : '#10b981'; ?>;">
+                                        <?php echo format_price($due); ?>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <?php if ($due <= 0 && $purchases > 0): ?>
+                                            <span class="badge" style="background-color: #10b981; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem;">
+                                                <i class="fas fa-check-circle"></i> Settled
+                                            </span>
+                                        <?php elseif ($due > 0 && $paid > 0): ?>
+                                            <span class="badge" style="background-color: #f59e0b; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem;">
+                                                <i class="fas fa-adjust"></i> Partial Due
+                                            </span>
+                                        <?php elseif ($due > 0): ?>
+                                            <span class="badge" style="background-color: #ef4444; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem;">
+                                                <i class="fas fa-exclamation-circle"></i> Unpaid Credit
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge" style="background: var(--surface-border, #e2e8f0); color: var(--text-muted); padding: 4px 8px; border-radius: 6px; font-size: 0.78rem;">
+                                                No Purchases
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <div class="action-btns-wrapper" style="justify-content: flex-end;">
+                                            <a href="<?php echo url('/admin/receive_invoices?supplier_id=' . $cs['supplier_id']); ?>" class="btn btn-secondary" style="font-size: 0.78rem; padding: 4px 10px; border-radius: 6px;" title="View all invoices for this supplier">
+                                                <i class="fas fa-receipt"></i> Invoices
+                                            </a>
+                                            <?php if ($due > 0): ?>
+                                                <a href="<?php echo url('/admin/receive_invoices?supplier_id=' . $cs['supplier_id'] . '&payment_status=unpaid'); ?>" class="btn btn-primary" style="font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; background-color: #ef4444; border-color: #ef4444;" title="Pay outstanding shipments">
+                                                    <i class="fas fa-hand-holding-usd"></i> Pay Due
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="7" class="sup-empty-state"><i class="fas fa-file-invoice-dollar"></i> No supplier transaction history available</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Glassmorphism Add/Edit Modal -->
@@ -1417,10 +1536,16 @@ function getInitials($name) {
             btn.classList.add('active');
         }
         
-        // Dynamic Add button text
+        // Dynamic Add button text & visibility
+        const addBtn = document.getElementById('openAddModal');
         const addBtnText = document.getElementById('addBtnText');
-        if (addBtnText) {
-            addBtnText.innerText = tabId === 'companies' ? 'Add Company' : 'Add Supplier';
+        if (addBtn && addBtnText) {
+            if (tabId === 'credit') {
+                addBtn.style.display = 'none';
+            } else {
+                addBtn.style.display = 'inline-flex';
+                addBtnText.innerText = tabId === 'companies' ? 'Add Company' : 'Add Supplier';
+            }
         }
         
         filterView();
@@ -1460,6 +1585,27 @@ function getInitials($name) {
         const query = queryInput.value.toLowerCase().trim();
         const statusFilter = statusSelect.value.toLowerCase();
         
+        if (currentTab === 'credit') {
+            const creditTable = document.getElementById('creditTable');
+            if (creditTable) {
+                const rows = creditTable.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    if (row.cells.length === 1) return;
+                    const name = row.dataset.name || '';
+                    const phone = row.dataset.phone || '';
+                    const status = row.dataset.status || '';
+                    
+                    const matchesSearch = !query || name.includes(query) || phone.includes(query);
+                    let matchesStatus = true;
+                    if (statusFilter === 'active') matchesStatus = (status === 'settled');
+                    else if (statusFilter === 'inactive') matchesStatus = (status === 'due');
+
+                    row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+                });
+            }
+            return;
+        }
+
         const isComp = currentTab === 'companies';
         const gridContainerId = isComp ? 'companiesGrid' : 'suppliersGrid';
         const tableId = isComp ? 'companiesTable' : 'suppliersTable';

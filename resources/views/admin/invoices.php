@@ -86,7 +86,9 @@ $rolePath = $role === 'admin' ? 'admin' : 'salesman';
                     <?php if (count($invoices) > 0): ?>
                         <?php foreach ($invoices as $inv): ?>
                             <tr>
-                                <td>#<?php echo str_pad($inv['id'], 5, '0', STR_PAD_LEFT); ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($inv['invoice_number'] ?? ('#' . str_pad($inv['id'], 5, '0', STR_PAD_LEFT))); ?></strong>
+                                </td>
                                 <td>
                                     <?php echo htmlspecialchars($inv['customer_name']); ?>
                                 </td>

@@ -22,22 +22,25 @@ class ReceiveInvoice extends BaseModel {
     }
 
     public function create($data) {
-        $sql = "INSERT INTO {$this->table} (invoice_number, supplier_id, user_id, total_amount, discount, net_amount, reference_number, status, received_date, is_return) 
-                VALUES (:invoice_number, :supplier_id, :user_id, :total_amount, :discount, :net_amount, :reference_number, :status, :received_date, :is_return)";
+        $sql = "INSERT INTO {$this->table} (invoice_number, supplier_id, user_id, total_amount, discount, net_amount, reference_number, status, payment_status, payment_due_date, amount_paid, received_date, is_return) 
+                VALUES (:invoice_number, :supplier_id, :user_id, :total_amount, :discount, :net_amount, :reference_number, :status, :payment_status, :payment_due_date, :amount_paid, :received_date, :is_return)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
-            'invoice_number' => $data['invoice_number'],
-            'supplier_id' => $data['supplier_id'],
-            'user_id' => $data['user_id'],
-            'total_amount' => $data['total_amount'],
-            'discount' => $data['discount'] ?? 0.00,
-            'net_amount' => $data['net_amount'],
+            'invoice_number'   => $data['invoice_number'],
+            'supplier_id'      => $data['supplier_id'],
+            'user_id'          => $data['user_id'],
+            'total_amount'     => $data['total_amount'],
+            'discount'         => $data['discount'] ?? 0.00,
+            'net_amount'       => $data['net_amount'],
             'reference_number' => $data['reference_number'],
-            'status' => $data['status'] ?? 'received',
-            'received_date' => $data['received_date'],
-            'is_return' => $data['is_return'] ?? 0
+            'status'           => $data['status'] ?? 'received',
+            'payment_status'   => $data['payment_status'] ?? 'paid',
+            'payment_due_date' => !empty($data['payment_due_date']) ? $data['payment_due_date'] : null,
+            'amount_paid'      => (float)($data['amount_paid'] ?? 0.00),
+            'received_date'    => $data['received_date'],
+            'is_return'        => $data['is_return'] ?? 0
         ]);
-        return $this->db->lastInsertId();
+        return (int)$this->db->lastInsertId();
     }
 
     public function updateInvoice($id, $data) {
@@ -48,20 +51,26 @@ class ReceiveInvoice extends BaseModel {
                     net_amount = :net_amount, 
                     reference_number = :reference_number, 
                     status = :status, 
+                    payment_status = :payment_status, 
+                    payment_due_date = :payment_due_date, 
+                    amount_paid = :amount_paid, 
                     received_date = :received_date,
                     is_return = :is_return 
                 WHERE id = :id";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
-            'supplier_id' => $data['supplier_id'],
-            'total_amount' => $data['total_amount'],
-            'discount' => $data['discount'] ?? 0.00,
-            'net_amount' => $data['net_amount'],
+            'supplier_id'      => $data['supplier_id'],
+            'total_amount'     => $data['total_amount'],
+            'discount'         => $data['discount'] ?? 0.00,
+            'net_amount'       => $data['net_amount'],
             'reference_number' => $data['reference_number'],
-            'status' => $data['status'] ?? 'received',
-            'received_date' => $data['received_date'],
-            'is_return' => $data['is_return'] ?? 0,
-            'id' => $id
+            'status'           => $data['status'] ?? 'received',
+            'payment_status'   => $data['payment_status'] ?? 'paid',
+            'payment_due_date' => !empty($data['payment_due_date']) ? $data['payment_due_date'] : null,
+            'amount_paid'      => (float)($data['amount_paid'] ?? 0.00),
+            'received_date'    => $data['received_date'],
+            'is_return'        => $data['is_return'] ?? 0,
+            'id'               => $id
         ]);
     }
 
@@ -79,6 +88,11 @@ class ReceiveInvoice extends BaseModel {
         if (!empty($filters['status'])) {
             $whereClauses[] = "ri.status = :status";
             $params['status'] = $filters['status'];
+        }
+
+        if (!empty($filters['payment_status'])) {
+            $whereClauses[] = "ri.payment_status = :payment_status";
+            $params['payment_status'] = $filters['payment_status'];
         }
         
         if (!empty($filters['start_date'])) {
@@ -143,5 +157,46 @@ class ReceiveInvoice extends BaseModel {
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
+    }
+
+    public function recordPayment(int $invoiceId, float $amount, string $paymentDate, string $paymentMethod, ?string $notes = null, ?int $userId = null): bool {
+        $invoice = $this->find('receive_invoices', $invoiceId);
+        if (!$invoice) {
+            throw new Exception("Receive Invoice #$invoiceId not found.");
+        }
+
+        $newAmountPaid = (float)($invoice['amount_paid'] ?? 0.00) + $amount;
+        $netAmount = (float)($invoice['net_amount'] ?? 0.00);
+
+        $newStatus = 'paid';
+        if ($newAmountPaid <= 0) {
+            $newStatus = 'unpaid';
+        } elseif ($newAmountPaid < $netAmount) {
+            $newStatus = 'partial';
+        } else {
+            $newStatus = 'paid';
+        }
+
+        // Update receive invoice
+        $stmt = $this->db->prepare("UPDATE {$this->table} SET amount_paid = :paid, payment_status = :status WHERE id = :id");
+        $stmt->execute([
+            'paid'   => $newAmountPaid,
+            'status' => $newStatus,
+            'id'     => $invoiceId
+        ]);
+
+        // Insert into supplier_payments
+        $spModel = new \App\Models\SupplierPayment();
+        $spModel->createPayment([
+            'receive_invoice_id' => $invoiceId,
+            'supplier_id'        => (int)$invoice['supplier_id'],
+            'amount'             => $amount,
+            'payment_date'       => $paymentDate,
+            'payment_method'     => $paymentMethod,
+            'notes'              => $notes,
+            'created_by'         => $userId
+        ]);
+
+        return true;
     }
 }

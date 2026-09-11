@@ -13,6 +13,8 @@ use App\Models\InventoryLog;
 use App\Models\ReceiveInvoice;
 use App\Models\ReceiveInvoiceItem;
 use App\Models\Notification;
+use App\Models\ProductBatch;
+use App\Models\SupplierPayment;
 
 class ReceiveInvoiceController {
     protected $receiveInvoiceModel;
@@ -22,6 +24,8 @@ class ReceiveInvoiceController {
     protected $supplierModel;
     protected $settingModel;
     protected $notificationModel;
+    protected $batchModel;
+    protected $supplierPaymentModel;
 
     public function __construct() {
         (new \App\Middleware\RoleMiddleware(['admin']))->handle();
@@ -32,6 +36,8 @@ class ReceiveInvoiceController {
         $this->supplierModel = new Supplier();
         $this->settingModel = new Setting();
         $this->notificationModel = new Notification();
+        $this->batchModel = new ProductBatch();
+        $this->supplierPaymentModel = new SupplierPayment();
     }
 
     public function index() {
@@ -40,13 +46,13 @@ class ReceiveInvoiceController {
         $msg = '';
         $msgType = '';
 
-
         // Filters
         $filters = [
-            'supplier_id' => $_GET['supplier_id'] ?? '',
-            'status' => $_GET['status'] ?? '',
-            'start_date' => $_GET['start_date'] ?? '',
-            'end_date' => $_GET['end_date'] ?? ''
+            'supplier_id'    => $_GET['supplier_id'] ?? '',
+            'status'         => $_GET['status'] ?? '',
+            'payment_status' => $_GET['payment_status'] ?? '',
+            'start_date'     => $_GET['start_date'] ?? '',
+            'end_date'       => $_GET['end_date'] ?? ''
         ];
 
         $page = (int)($_GET['page'] ?? 1);
@@ -142,22 +148,45 @@ class ReceiveInvoiceController {
                     ];
                 }
 
-                $netAmount = $totalAmount - $discount;
+                $netAmount = max(0.00, $totalAmount - $discount);
                 if ($netAmount < 0) {
                     throw new Exception("Discount cannot exceed total amount.");
                 }
 
+                $paymentStatus = $_POST['payment_status'] ?? 'paid';
+                $paymentDueDate = !empty($_POST['payment_due_date']) ? $_POST['payment_due_date'] : null;
+                $paymentMethod = $_POST['payment_method'] ?? 'cash';
+                $paymentNotes = trim($_POST['payment_notes'] ?? '');
+
+                $amountPaid = 0.00;
+                if ($paymentStatus === 'paid') {
+                    $amountPaid = $netAmount;
+                } elseif ($paymentStatus === 'partial') {
+                    $amountPaid = min($netAmount, max(0.00, (float)($_POST['amount_paid'] ?? 0.00)));
+                    if ($amountPaid >= $netAmount) {
+                        $paymentStatus = 'paid';
+                    } elseif ($amountPaid <= 0) {
+                        $paymentStatus = 'unpaid';
+                    }
+                } else {
+                    $paymentStatus = 'unpaid';
+                    $amountPaid = 0.00;
+                }
+
                 // 1. Create invoice header
                 $invoiceData = [
-                    'invoice_number' => $nextInvoiceNumber,
-                    'supplier_id' => $supplierId,
-                    'user_id' => $_SESSION['user_id'],
-                    'total_amount' => $totalAmount,
-                    'discount' => $discount,
-                    'net_amount' => $netAmount,
+                    'invoice_number'   => $nextInvoiceNumber,
+                    'supplier_id'      => $supplierId,
+                    'user_id'          => $_SESSION['user_id'],
+                    'total_amount'     => $totalAmount,
+                    'discount'         => $discount,
+                    'net_amount'       => $netAmount,
                     'reference_number' => $referenceNumber,
-                    'status' => 'received',
-                    'received_date' => $receivedDate
+                    'status'           => 'received',
+                    'payment_status'   => $paymentStatus,
+                    'payment_due_date' => $paymentDueDate,
+                    'amount_paid'      => $amountPaid,
+                    'received_date'    => $receivedDate
                 ];
                 
                 $invoiceId = $this->receiveInvoiceModel->create($invoiceData);
@@ -166,12 +195,35 @@ class ReceiveInvoiceController {
                     throw new Exception("Failed to save invoice.");
                 }
 
-                // 2. Create invoice items, update product stocks and log inventory changes
+                // If an initial payment was made, record it in supplier_payments
+                if ($amountPaid > 0) {
+                    $this->supplierPaymentModel->createPayment([
+                        'receive_invoice_id' => $invoiceId,
+                        'supplier_id'        => $supplierId,
+                        'amount'             => $amountPaid,
+                        'payment_date'       => $receivedDate,
+                        'payment_method'     => $paymentMethod,
+                        'notes'              => !empty($paymentNotes) ? $paymentNotes : "Initial payment on stock receipt",
+                        'created_by'         => $_SESSION['user_id']
+                    ]);
+                }
+
+                // 2. Create invoice items, batch records, update product stocks and log inventory changes
                 foreach ($itemsToCreate as $item) {
                     $item['receive_invoice_id'] = $invoiceId;
                     
                     // Create item record (includes batch_number & expiry_date)
                     $this->receiveInvoiceItemModel->create($item);
+
+                    // Create ProductBatch row for multi-batch FEFO tracking
+                    $this->batchModel->create([
+                        'product_id'         => $item['product_id'],
+                        'batch_number'       => !empty($item['batch_number']) ? $item['batch_number'] : 'BATCH-' . date('Ymd'),
+                        'expiry_date'        => !empty($item['expiry_date']) ? $item['expiry_date'] : null,
+                        'quantity'           => $item['quantity'],
+                        'cost_price'         => $item['cost_price'],
+                        'receive_invoice_id' => $invoiceId
+                    ]);
 
                     // Update stock: add quantities (passing negative decreases the negative, i.e., adds stock)
                     $this->productModel->updateStock($item['product_id'], -$item['quantity']);
@@ -344,7 +396,15 @@ class ReceiveInvoiceController {
                     // $this->productModel->updateStock does: SET quantity = quantity - :quantity
                     // To deduct stock, we pass positive.
                     // Since $item['quantity'] is negative, we pass -$item['quantity'] which makes it positive.
-                    $this->productModel->updateStock($item['product_id'], -$item['quantity']);
+                    $deductQty = -$item['quantity'];
+                    $this->productModel->updateStock($item['product_id'], $deductQty);
+
+                    // Deduct from batch
+                    try {
+                        $this->batchModel->deductStockFEFO($item['product_id'], $deductQty);
+                    } catch (Exception $batchEx) {
+                        // Log or allow fallback if older unbatched stock
+                    }
 
                     // Log inventory transaction
                     $this->logModel->create([
@@ -381,8 +441,6 @@ class ReceiveInvoiceController {
         require_once BASE_PATH . '/resources/views/admin/create_return_receive_invoice.php';
     }
 
-
-
     public function view() {
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) {
@@ -397,8 +455,49 @@ class ReceiveInvoiceController {
         }
 
         $items = $this->receiveInvoiceItemModel->getByInvoice($id);
+        $payments = $this->supplierPaymentModel->getByReceiveInvoice($id);
+        $settings = $this->settingModel->getAll();
+
+        $paymentStatus = $invoice['payment_status'] ?? 'paid';
+        $amountPaid = (float)($invoice['amount_paid'] ?? 0.00);
+        $netAmount = (float)($invoice['net_amount'] ?? 0.00);
+        $remainingDue = max(0.00, $netAmount - $amountPaid);
 
         require_once BASE_PATH . '/resources/views/admin/view_receive_invoice.php';
+    }
+
+    public function recordPayment() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('/admin/receive_invoices');
+        }
+
+        $invoiceId = (int)($_POST['receive_invoice_id'] ?? 0);
+        $amount = (float)($_POST['amount'] ?? 0.00);
+        $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
+        $paymentMethod = $_POST['payment_method'] ?? 'cash';
+        $notes = trim($_POST['notes'] ?? '');
+
+        if ($invoiceId <= 0 || $amount <= 0) {
+            $_SESSION['error_msg'] = "Invalid payment amount or invoice.";
+            redirect('/admin/receive_invoices');
+        }
+
+        try {
+            $this->receiveInvoiceModel->recordPayment(
+                $invoiceId,
+                $amount,
+                $paymentDate,
+                $paymentMethod,
+                $notes,
+                $_SESSION['user_id'] ?? null
+            );
+            $_SESSION['success_msg'] = "Payment of " . number_format($amount, 2) . " recorded successfully!";
+        } catch (Exception $e) {
+            $_SESSION['error_msg'] = "Error recording payment: " . $e->getMessage();
+        }
+
+        $redirectTo = !empty($_POST['redirect_to']) ? $_POST['redirect_to'] : '/admin/receive_invoices';
+        redirect($redirectTo);
     }
 
     public function detailsApi() {
@@ -433,11 +532,13 @@ class ReceiveInvoiceController {
         }
         
         $items = $this->receiveInvoiceItemModel->getByInvoice($id);
+        $payments = $this->supplierPaymentModel->getByReceiveInvoice($id);
         
         echo json_encode([
             'success' => true,
             'invoice' => $invoice,
-            'items' => $items
+            'items' => $items,
+            'payments' => $payments
         ]);
     }
 }

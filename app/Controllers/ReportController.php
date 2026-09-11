@@ -4,23 +4,25 @@ namespace App\Controllers;
 
 use Exception;
 use PDO;
-use PDOException;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Setting;
 use App\Models\Invoice;
+use App\Models\Report;
+use App\Models\User;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpWord\PhpWord;
-use PhpOffice\PhpWord\Shared\Html;
 
 class ReportController {
     protected Product $productModel;
     protected Invoice $invoiceModel;
     protected Setting $settingModel;
-    protected PDO $db;
+    protected Report $reportModel;
+    protected Category $categoryModel;
+    protected User $userModel;
 
     public function __construct() {
         // Middleware: Check if user is logged in and is admin or salesman
@@ -28,14 +30,13 @@ class ReportController {
         $this->productModel = new Product();
         $this->invoiceModel = new Invoice();
         $this->settingModel = new Setting();
-        
-        global $pdo;
-        $this->db = $pdo;
+        $this->reportModel = new Report();
+        $this->categoryModel = new Category();
+        $this->userModel = new User();
     }
 
     public function index() {
         $pageTitle = "System Analytics & Reports";
-        $db = $this->db;
 
         // Fetch query parameters
         $filter_preset = $_GET['preset'] ?? 'all';
@@ -70,8 +71,8 @@ class ReportController {
         $salesmen = [];
         $categories = [];
         try {
-            $salesmen = $db->query("SELECT id, name FROM users WHERE role = 'salesman' AND status = 'active' ORDER BY name ASC")->fetchAll();
-            $categories = $db->query("SELECT id, name FROM categories ORDER BY name ASC")->fetchAll();
+            $salesmen = $this->userModel->all('users', 'name ASC', null, "role = 'salesman' AND status = 'active'");
+            $categories = $this->categoryModel->all('categories', 'name ASC');
         } catch (Exception $e) {
             error_log("[Report Dropdown Error] " . $e->getMessage());
         }
@@ -97,123 +98,26 @@ class ReportController {
         $salesByCompany = [];
 
         try {
-            // Build WHERE clauses for invoices
-            $invoiceWhere = [];
-            $invoiceParams = [];
+            $filters = [
+                'preset'      => $filter_preset,
+                'start_date'   => $start_date,
+                'end_date'     => $end_date,
+                'salesman_id'  => $salesman_id,
+                'category_id'  => $category_id,
+            ];
 
-            if ($start_date !== '') {
-                $invoiceWhere[] = "i.created_at >= :start_date";
-                $invoiceParams['start_date'] = $start_date . ' 00:00:00';
-            }
-            if ($end_date !== '') {
-                $invoiceWhere[] = "i.created_at <= :end_date";
-                $invoiceParams['end_date'] = $end_date . ' 23:59:59';
-            }
-            if ($salesman_id !== 'all') {
-                $invoiceWhere[] = "i.user_id = :salesman_id";
-                $invoiceParams['salesman_id'] = (int)$salesman_id;
-            }
+            // 1. Calculate Summary KPIs
+            $summary = $this->reportModel->getAnalyticsSummary($filters);
+            $totalRevenue = $summary['totalRevenue'];
+            $totalProfit = $summary['totalProfit'];
+            $profitMargin = $summary['profitMargin'];
+            $totalInventoryValue = $summary['totalInventoryValue'];
+            $totalCustomers = $summary['totalCustomers'];
+            $totalInvoices = $summary['totalInvoices'];
+            $averageOrderValue = $summary['averageOrderValue'];
+            $outOfStockCount = $summary['outOfStockCount'];
 
-            // Category joined queries
-            $catWhere = $invoiceWhere;
-            $catParams = $invoiceParams;
-            if ($category_id !== 'all') {
-                $catWhere[] = "p.category_id = :category_id";
-                $catParams['category_id'] = (int)$category_id;
-            }
-
-            // 1. Calculate Revenue, Profit & Invoices Count
-            if ($category_id !== 'all') {
-                $whereStr = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : "";
-                
-                // Revenue & Profit
-                $revQuery = "SELECT SUM(ii.subtotal) as revenue, SUM(ii.subtotal - (COALESCE(ii.cost_price, p.cost_price) * ii.quantity)) as profit
-                             FROM invoices i 
-                             JOIN invoice_items ii ON i.id = ii.invoice_id
-                             JOIN products p ON ii.product_id = p.id
-                             $whereStr";
-                $stmt = $db->prepare($revQuery);
-                $stmt->execute($catParams);
-                $revResult = $stmt->fetch(PDO::FETCH_ASSOC);
-                $totalRevenue = (float)($revResult['revenue'] ?? 0.0);
-                $totalProfit = (float)($revResult['profit'] ?? 0.0);
-
-                // Invoices
-                $invQuery = "SELECT COUNT(DISTINCT i.id) 
-                             FROM invoices i 
-                             JOIN invoice_items ii ON i.id = ii.invoice_id
-                             JOIN products p ON ii.product_id = p.id
-                             $whereStr";
-                $stmt = $db->prepare($invQuery);
-                $stmt->execute($catParams);
-                $totalInvoices = (int)($stmt->fetchColumn() ?: 0);
-            } else {
-                $whereStr = count($invoiceWhere) > 0 ? "WHERE " . implode(" AND ", $invoiceWhere) : "";
-                
-                // Revenue & Profit
-                // We join products to get cost_price fallback
-                $revQuery = "SELECT SUM(ii.subtotal) as revenue, SUM(ii.subtotal - (COALESCE(ii.cost_price, p.cost_price) * ii.quantity)) as profit
-                             FROM invoices i 
-                             LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
-                             LEFT JOIN products p ON ii.product_id = p.id
-                             $whereStr";
-                $stmt = $db->prepare($revQuery);
-                $stmt->execute($invoiceParams);
-                $revResult = $stmt->fetch(PDO::FETCH_ASSOC);
-                $totalRevenue = (float)($revResult['revenue'] ?? 0.0);
-                $totalProfit = (float)($revResult['profit'] ?? 0.0);
-
-                // Invoices
-                $invQuery = "SELECT COUNT(*) FROM invoices i $whereStr";
-                $stmt = $db->prepare($invQuery);
-                $stmt->execute($invoiceParams);
-                $totalInvoices = (int)($stmt->fetchColumn() ?: 0);
-            }
-
-            // 2. Active Customers (based on distinct patient names)
-            if ($category_id !== 'all') {
-                $custWhereStr = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : "";
-                
-                $custQuery = "SELECT COUNT(DISTINCT i.customer_name) 
-                              FROM invoices i 
-                              JOIN invoice_items ii ON i.id = ii.invoice_id
-                              JOIN products p ON ii.product_id = p.id
-                              $custWhereStr";
-                $stmt = $db->prepare($custQuery);
-                $stmt->execute($catParams);
-                $totalCustomers = (int)($stmt->fetchColumn() ?: 0);
-            } else {
-                $custWhereStr = count($invoiceWhere) > 0 ? "WHERE " . implode(" AND ", $invoiceWhere) : "";
-                
-                $custQuery = "SELECT COUNT(DISTINCT i.customer_name) FROM invoices i $custWhereStr";
-                $stmt = $db->prepare($custQuery);
-                $stmt->execute($invoiceParams);
-                $totalCustomers = (int)($stmt->fetchColumn() ?: 0);
-            }
-
-            // 3. Average Order Value & Profit Margin
-            $averageOrderValue = $totalInvoices > 0 ? ($totalRevenue / $totalInvoices) : 0.0;
-            $profitMargin = $totalRevenue > 0 ? ($totalProfit / $totalRevenue) * 100 : 0.0;
-
-            // 4. Asset Valuation (Current inventory value)
-            if ($category_id !== 'all') {
-                $stmt = $db->prepare("SELECT SUM(price * quantity) FROM products WHERE category_id = :category_id");
-                $stmt->execute(['category_id' => (int)$category_id]);
-            } else {
-                $stmt = $db->query("SELECT SUM(price * quantity) FROM products");
-            }
-            $totalInventoryValue = (float)($stmt->fetchColumn() ?: 0.0);
-
-            // 5. Out of Stock count
-            if ($category_id !== 'all') {
-                $stmt = $db->prepare("SELECT COUNT(*) FROM products WHERE quantity = 0 AND category_id = :category_id");
-                $stmt->execute(['category_id' => (int)$category_id]);
-            } else {
-                $stmt = $db->query("SELECT COUNT(*) FROM products WHERE quantity = 0");
-            }
-            $outOfStockCount = (int)($stmt->fetchColumn() ?: 0);
-
-            // 6. Sales Trend Grouping (By day for short ranges, by month for long ranges)
+            // 2. Sales Trend Grouping
             $isDaily = false;
             if ($start_date !== '' && $end_date !== '') {
                 $diff = (strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24);
@@ -221,134 +125,25 @@ class ReportController {
                     $isDaily = true;
                 }
             }
-            $timeFormat = $isDaily ? '%Y-%m-%d' : '%Y-%m';
-            $groupBy = "strftime('{$timeFormat}', i.created_at)";
+            $salesTrend = $this->reportModel->getSalesTrend($filters, $isDaily);
 
-            if ($category_id !== 'all') {
-                $whereStr = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : "";
-                $trendQuery = "SELECT $groupBy as time_label, SUM(ii.subtotal) as revenue, SUM(ii.subtotal - (COALESCE(ii.cost_price, p.cost_price) * ii.quantity)) as profit, COUNT(DISTINCT i.id) as count
-                               FROM invoices i
-                               JOIN invoice_items ii ON i.id = ii.invoice_id
-                               JOIN products p ON ii.product_id = p.id
-                               $whereStr
-                               GROUP BY time_label
-                               ORDER BY time_label ASC";
-                $stmt = $db->prepare($trendQuery);
-                $stmt->execute($catParams);
-            } else {
-                $whereStr = count($invoiceWhere) > 0 ? "WHERE " . implode(" AND ", $invoiceWhere) : "";
-                $trendQuery = "SELECT $groupBy as time_label, SUM(ii.subtotal) as revenue, SUM(ii.subtotal - (COALESCE(ii.cost_price, p.cost_price) * ii.quantity)) as profit, COUNT(DISTINCT i.id) as count
-                               FROM invoices i
-                               LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
-                               LEFT JOIN products p ON ii.product_id = p.id
-                               $whereStr
-                               GROUP BY time_label
-                               ORDER BY time_label ASC";
-                $stmt = $db->prepare($trendQuery);
-                $stmt->execute($invoiceParams);
-            }
-            $salesTrend = $stmt->fetchAll();
-
-            // 7. Top Selling Products
-            $whereStr = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : "";
-            $topProdQuery = "SELECT p.id, p.name, p.image, c.name as category_name, SUM(ii.quantity) as total_qty, SUM(ii.subtotal) as total_revenue
-                             FROM invoice_items ii
-                             JOIN products p ON ii.product_id = p.id
-                             LEFT JOIN categories c ON p.category_id = c.id
-                             JOIN invoices i ON ii.invoice_id = i.id
-                             $whereStr
-                             GROUP BY p.id, p.name, p.image, c.name
-                             ORDER BY total_qty DESC";
-            $stmt = $db->prepare($topProdQuery);
-            $stmt->execute($catParams);
-            $allFilteredTopProducts = $stmt->fetchAll();
+            // 3. Top Selling Products
+            $allFilteredTopProducts = $this->reportModel->getTopSellingProducts($filters);
             $topProducts = array_slice($allFilteredTopProducts, 0, 5);
 
-            // 8. Low Stock Alerts
-            $sql = "SELECT p.id, p.name, p.strength, p.quantity, p.price, p.min_stock_level, c.name as category_name, g.name as generic_name 
-                    FROM products p 
-                    LEFT JOIN categories c ON p.category_id = c.id
-                    LEFT JOIN generics g ON p.generic_id = g.id";
-            if ($category_id !== 'all') {
-                $sql .= " WHERE p.quantity <= p.min_stock_level AND p.category_id = :category_id
-                        ORDER BY p.quantity ASC";
-                $stmt = $db->prepare($sql);
-                $stmt->bindValue(':category_id', (int)$category_id, PDO::PARAM_INT);
-            } else {
-                $sql .= " WHERE p.quantity <= p.min_stock_level 
-                        ORDER BY p.quantity ASC";
-                $stmt = $db->prepare($sql);
-            }
-            $stmt->execute();
-            $allFilteredLowStockProducts = $stmt->fetchAll();
+            // 4. Low Stock Alerts
+            $allFilteredLowStockProducts = $this->reportModel->getLowStockProducts($category_id);
             $lowStockProducts = array_slice($allFilteredLowStockProducts, 0, 5);
 
-            // 9. Sales by Category (for Doughnut Chart)
-            $catChartQuery = "SELECT c.name as category_name, SUM(ii.subtotal) as total_revenue, SUM(ii.quantity) as total_qty
-                              FROM invoice_items ii
-                              JOIN products p ON ii.product_id = p.id
-                              JOIN categories c ON p.category_id = c.id
-                              JOIN invoices i ON ii.invoice_id = i.id
-                              $whereStr
-                              GROUP BY c.id, c.name
-                              ORDER BY total_revenue DESC";
-            $stmt = $db->prepare($catChartQuery);
-            $stmt->execute($catParams);
-            $salesByCategory = $stmt->fetchAll();
+            // 5. Category Breakdown
+            $salesByCategory = $this->reportModel->getSalesByCategory($filters);
 
-            // 10. Salesman Leaderboard (for Bar Chart)
-            if ($category_id !== 'all') {
-                $whereStrForLeaderboard = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : "";
-                $leaderboardQuery = "SELECT u.name as salesman_name, SUM(ii.subtotal) as total_revenue, COUNT(DISTINCT i.id) as invoice_count
-                                     FROM invoices i
-                                     JOIN users u ON i.user_id = u.id
-                                     JOIN invoice_items ii ON i.id = ii.invoice_id
-                                     JOIN products p ON ii.product_id = p.id
-                                     $whereStrForLeaderboard
-                                     GROUP BY u.id, u.name
-                                     ORDER BY total_revenue DESC";
-                $stmt = $db->prepare($leaderboardQuery);
-                $stmt->execute($catParams);
-            } else {
-                $whereStrForLeaderboard = count($invoiceWhere) > 0 ? "WHERE " . implode(" AND ", $invoiceWhere) : "";
-                $leaderboardQuery = "SELECT u.name as salesman_name, SUM(i.total_amount) as total_revenue, COUNT(i.id) as invoice_count
-                                     FROM invoices i
-                                     JOIN users u ON i.user_id = u.id
-                                     $whereStrForLeaderboard
-                                     GROUP BY u.id, u.name
-                                     ORDER BY total_revenue DESC";
-                $stmt = $db->prepare($leaderboardQuery);
-                $stmt->execute($invoiceParams);
-            }
-            $salesmanLeaderboard = $stmt->fetchAll();
+            // 6. Salesman Leaderboard
+            $salesmanLeaderboard = $this->reportModel->getSalesmanPerformance($filters);
 
-            // 11. Sales by Generic Name
-            $whereStrGeneric = count($catWhere) > 0 ? "WHERE " . implode(" AND ", $catWhere) : (count($invoiceWhere) > 0 ? "WHERE " . implode(" AND ", $invoiceWhere) : "");
-            $genericQuery = "SELECT g.name as generic_name, SUM(ii.subtotal) as total_revenue, SUM(ii.quantity) as total_qty
-                             FROM invoice_items ii
-                             JOIN products p ON ii.product_id = p.id
-                             LEFT JOIN generics g ON p.generic_id = g.id
-                             JOIN invoices i ON ii.invoice_id = i.id
-                             $whereStrGeneric
-                             GROUP BY g.id, g.name
-                             ORDER BY total_revenue DESC LIMIT 10";
-            $stmt = $db->prepare($genericQuery);
-            $stmt->execute($category_id !== 'all' ? $catParams : $invoiceParams);
-            $salesByGeneric = $stmt->fetchAll();
-
-            // 12. Sales by Company/Manufacturer
-            $companyQuery = "SELECT comp.name as company_name, SUM(ii.subtotal) as total_revenue, SUM(ii.quantity) as total_qty
-                             FROM invoice_items ii
-                             JOIN products p ON ii.product_id = p.id
-                             LEFT JOIN companies comp ON p.company_id = comp.id
-                             JOIN invoices i ON ii.invoice_id = i.id
-                             $whereStrGeneric
-                             GROUP BY comp.id, comp.name
-                             ORDER BY total_revenue DESC LIMIT 10";
-            $stmt = $db->prepare($companyQuery);
-            $stmt->execute($category_id !== 'all' ? $catParams : $invoiceParams);
-            $salesByCompany = $stmt->fetchAll();
-
+            // 7. Generic & Company Breakdown
+            $salesByGeneric = $this->reportModel->getSalesByGeneric($filters, 10);
+            $salesByCompany = $this->reportModel->getSalesByCompany($filters, 10);
 
         } catch (Exception $e) {
             error_log("[Report Error] " . $e->getMessage());
@@ -381,21 +176,21 @@ class ReportController {
         $title = "Report";
 
         if ($category === 'medicine') {
-            $result = $this->getMedicineReport($type, $categoryId, $companyId);
+            $result = $this->reportModel->getMedicineReport($type, $categoryId, $companyId);
         } elseif ($category === 'receive') {
-            $result = $this->getReceiveReport($type, $startDate, $endDate, $companyId);
+            $result = $this->reportModel->getReceiveReport($type, $startDate, $endDate, $companyId);
         } elseif ($category === 'sale') {
-            $result = $this->getSaleReport($type, $startDate, $endDate, $salesmanId, $categoryId, $companyId);
+            $result = $this->reportModel->getSaleReport($type, $startDate, $endDate, $salesmanId, $categoryId, $companyId);
         } elseif ($category === 'stock') {
-            $result = $this->getStockReport($type, $categoryId, $companyId);
+            $result = $this->reportModel->getStockReport($type, $categoryId, $companyId);
         } elseif ($category === 'analytics') {
             if ($type === 'margin_analysis') {
-                $result = $this->getMarginAnalysisReport($startDate, $endDate, $categoryId, $companyId);
+                $result = $this->reportModel->getMarginAnalysisReport($startDate, $endDate, $categoryId, $companyId);
             } elseif ($type === 'dead_stock') {
                 $days = (int)($_POST['dead_stock_days'] ?? 90);
-                $result = $this->getDeadStockReport($days, $categoryId, $companyId);
+                $result = $this->reportModel->getDeadStockReport($days, $categoryId, $companyId);
             } elseif ($type === 'customer_ledger') {
-                $result = $this->getCustomerLedgerReport($startDate, $endDate);
+                $result = $this->reportModel->getCustomerLedgerReport($startDate, $endDate);
             } else {
                 $result = ['title' => 'Analytics Report', 'data' => []];
             }
@@ -483,256 +278,6 @@ class ReportController {
             }
         }
         return $totals;
-    }
-
-    private function getMedicineReport($type, $categoryId = 'all', $companyId = 'all') {
-        $curr = currency_symbol();
-        $where = [];
-        if ($categoryId !== 'all' && !empty($categoryId)) $where[] = "p.category_id = " . (int)$categoryId;
-        if ($companyId !== 'all' && !empty($companyId)) $where[] = "p.company_id = " . (int)$companyId;
-        $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
-
-        if ($type === 'detailed_info') {
-            $stmt = $this->db->query("SELECT p.name as 'Medicine', g.name as 'Generic', comp.name as 'Manufacturer', c.name as 'Category', p.batch_number as 'Batch', p.expiry_date as 'Expiry', p.min_stock_level as 'Min Stock' FROM products p LEFT JOIN generics g ON p.generic_id = g.id LEFT JOIN companies comp ON p.company_id = comp.id LEFT JOIN categories c ON p.category_id = c.id $whereSql ORDER BY p.name ASC");
-            return ['title' => 'Detailed Medicine Information', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        } elseif ($type === 'company_wise') {
-            $stmt = $this->db->query("SELECT comp.name as group_name, p.name as medicine, g.name as generic, c.name as category, p.batch_number as batch, p.expiry_date as expiry, p.quantity as stock, p.cost_price as cost, p.price as price FROM products p JOIN companies comp ON p.company_id = comp.id LEFT JOIN generics g ON p.generic_id = g.id LEFT JOIN categories c ON p.category_id = c.id $whereSql ORDER BY comp.name ASC, p.name ASC");
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $groups = [];
-            foreach ($rows as $row) {
-                $gName = $row['group_name'] ?: 'Unassigned Company';
-                if (!isset($groups[$gName])) {
-                    $groups[$gName] = [
-                        'group_title' => 'Company: ' . $gName,
-                        'group_name'  => $gName,
-                        'items'       => []
-                    ];
-                }
-                $groups[$gName]['items'][] = [
-                    'Medicine'      => $row['medicine'],
-                    'Generic'       => $row['generic'] ?: 'N/A',
-                    'Category'      => $row['category'] ?: 'N/A',
-                    'Batch'         => $row['batch'] ?: 'N/A',
-                    'Expiry'        => $row['expiry'] ?: 'N/A',
-                    'Stock Qty'     => (int)$row['stock'],
-                    'Cost Price'    => (float)$row['cost'],
-                    'Retail Price'  => (float)$row['price'],
-                    'Total Cost Value' => round((float)$row['stock'] * (float)$row['cost'], 2),
-                    'Total Retail Value' => round((float)$row['stock'] * (float)$row['price'], 2)
-                ];
-            }
-            return [
-                'title'    => 'Company-wise Medicine Report',
-                'data'     => $groups,
-                'is_list'  => true,
-                'group_by' => 'Company'
-            ];
-        } elseif ($type === 'category_wise') {
-            $stmt = $this->db->query("SELECT c.name as group_name, p.name as medicine, g.name as generic, comp.name as company, p.batch_number as batch, p.expiry_date as expiry, p.quantity as stock, p.cost_price as cost, p.price as price FROM products p JOIN categories c ON p.category_id = c.id LEFT JOIN generics g ON p.generic_id = g.id LEFT JOIN companies comp ON p.company_id = comp.id $whereSql ORDER BY c.name ASC, p.name ASC");
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $groups = [];
-            foreach ($rows as $row) {
-                $gName = $row['group_name'] ?: 'General Category';
-                if (!isset($groups[$gName])) {
-                    $groups[$gName] = [
-                        'group_title' => 'Category: ' . $gName,
-                        'group_name'  => $gName,
-                        'items'       => []
-                    ];
-                }
-                $groups[$gName]['items'][] = [
-                    'Medicine'      => $row['medicine'],
-                    'Generic'       => $row['generic'] ?: 'N/A',
-                    'Company'       => $row['company'] ?: 'N/A',
-                    'Batch'         => $row['batch'] ?: 'N/A',
-                    'Expiry'        => $row['expiry'] ?: 'N/A',
-                    'Stock Qty'     => (int)$row['stock'],
-                    'Cost Price'    => (float)$row['cost'],
-                    'Retail Price'  => (float)$row['price'],
-                    'Total Cost Value' => round((float)$row['stock'] * (float)$row['cost'], 2),
-                    'Total Retail Value' => round((float)$row['stock'] * (float)$row['price'], 2)
-                ];
-            }
-            return [
-                'title'    => 'Category-wise Medicine Report',
-                'data'     => $groups,
-                'is_list'  => true,
-                'group_by' => 'Category'
-            ];
-        } elseif ($type === 'rate_list') {
-            $stmt = $this->db->query("SELECT p.name as 'Medicine', p.strength as 'Strength', p.cost_price as 'Cost Price ({$curr})', p.trad_price as 'Trade Price ({$curr})', p.price as 'Retail Price ({$curr})', (p.price - p.cost_price) as 'Profit per Unit ({$curr})' FROM products p $whereSql ORDER BY p.name ASC");
-            return ['title' => 'Up-to-date Medicine Rate List', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        }
-        return ['title' => 'Medicine Report', 'data' => []];
-    }
-
-    private function getReceiveReport($type, $start, $end, $companyId = 'all') {
-        $curr = currency_symbol();
-        $where = $this->getDateWhere('ri.created_at', $start, $end);
-        
-        if ($type === 'complete_register') {
-            $sql = "SELECT ri.invoice_number as 'Invoice #', DATE(ri.created_at) as 'Date', s.name as 'Supplier', ri.total_amount as 'Total Amount ({$curr})', ri.status as 'Status' 
-                    FROM receive_invoices ri 
-                    LEFT JOIN suppliers s ON ri.supplier_id = s.id 
-                    $where ORDER BY ri.created_at DESC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($this->getDateParams($start, $end));
-            return ['title' => 'Complete Receive Register', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        } elseif ($type === 'received_return') {
-            $where2 = $this->getDateWhere('il.created_at', $start, $end);
-            $where2 = $where2 ? $where2 . " AND il.type = 'return'" : "WHERE il.type = 'return'";
-            $sql = "SELECT DATE(il.created_at) as 'Date', p.name as 'Product', u.name as 'User', il.qty_change as 'Qty Change', il.remarks as 'Remarks' 
-                    FROM inventory_logs il 
-                    LEFT JOIN products p ON il.product_id = p.id 
-                    LEFT JOIN users u ON il.user_id = u.id 
-                    $where2 ORDER BY il.created_at DESC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($this->getDateParams($start, $end));
-            return ['title' => 'Detailed Received Return Register', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        }
-        return ['title' => 'Receive Report', 'data' => []];
-    }
-
-    private function getSaleReport($type, $start, $end, $salesmanId = 'all', $categoryId = 'all', $companyId = 'all') {
-        $curr = currency_symbol();
-        $conds = [];
-        $params = [];
-        if ($start) { $conds[] = "DATE(i.created_at) >= :start"; $params['start'] = $start; }
-        if ($end) { $conds[] = "DATE(i.created_at) <= :end"; $params['end'] = $end; }
-        if ($salesmanId !== 'all' && !empty($salesmanId)) { $conds[] = "i.user_id = :salesman_id"; $params['salesman_id'] = $salesmanId; }
-
-        if ($type === 'individual_medicine') {
-            if ($categoryId !== 'all' && !empty($categoryId)) { $conds[] = "p.category_id = :category_id"; $params['category_id'] = $categoryId; }
-            if ($companyId !== 'all' && !empty($companyId)) { $conds[] = "p.company_id = :company_id"; $params['company_id'] = $companyId; }
-            $whereSql = !empty($conds) ? "WHERE " . implode(" AND ", $conds) : "";
-
-            $sql = "SELECT p.name as 'Medicine', g.name as 'Generic', SUM(ii.quantity) as 'Total Qty Sold', SUM(ii.subtotal) as 'Total Revenue ({$curr})', SUM(ii.subtotal - (ii.quantity * COALESCE(ii.cost_price, p.cost_price))) as 'Gross Profit ({$curr})'
-                    FROM invoice_items ii 
-                    JOIN invoices i ON ii.invoice_id = i.id 
-                    JOIN products p ON ii.product_id = p.id 
-                    LEFT JOIN generics g ON p.generic_id = g.id 
-                    $whereSql GROUP BY p.id ORDER BY `Total Revenue ({$curr})` DESC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return ['title' => 'Individual Medicine Sale Report', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        } elseif ($type === 'invoice_overview') {
-            $whereSql = !empty($conds) ? "WHERE " . implode(" AND ", $conds) : "";
-            $sql = "SELECT i.id as 'Invoice ID', DATE(i.created_at) as 'Invoice Date', i.customer_name as 'Customer Name', u.name as 'Salesman', i.total_amount as 'Total Amount ({$curr})' FROM invoices i LEFT JOIN users u ON i.user_id = u.id $whereSql ORDER BY DATE(i.created_at) ASC, i.id ASC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return ['title' => 'Invoice-based Sale Overview', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        } elseif ($type === 'company_wise_sale') {
-            if ($companyId !== 'all' && !empty($companyId)) { $conds[] = "p.company_id = :company_id"; $params['company_id'] = $companyId; }
-            $whereSql = !empty($conds) ? "WHERE " . implode(" AND ", $conds) : "";
-            $sql = "SELECT comp.name as 'Company/Manufacturer', COUNT(DISTINCT ii.invoice_id) as 'Total Invoices', SUM(ii.quantity) as 'Total Qty Sold', SUM(ii.subtotal) as 'Total Revenue ({$curr})' FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id JOIN products p ON ii.product_id = p.id JOIN companies comp ON p.company_id = comp.id $whereSql GROUP BY comp.id ORDER BY `Total Revenue ({$curr})` DESC";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return ['title' => 'Company-wise Medicine Sale Report', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        }
-        return ['title' => 'Sale Report', 'data' => []];
-    }
-
-    private function getStockReport($type, $categoryId = 'all', $companyId = 'all') {
-        $curr = currency_symbol();
-        $conds = [];
-        if ($categoryId !== 'all' && !empty($categoryId)) $conds[] = "p.category_id = " . (int)$categoryId;
-        if ($companyId !== 'all' && !empty($companyId)) $conds[] = "p.company_id = " . (int)$companyId;
-
-        if ($type === 'overall_overview') {
-            $conds[] = "p.quantity > 0";
-            $whereSql = "WHERE " . implode(" AND ", $conds);
-            $stmt = $this->db->query("SELECT p.name as 'Medicine', c.name as 'Category', comp.name as 'Company', p.quantity as 'Current Stock', p.cost_price as 'Cost/Unit ({$curr})', (p.quantity * p.cost_price) as 'Total Value ({$curr})' FROM products p LEFT JOIN categories c ON p.category_id = c.id LEFT JOIN companies comp ON p.company_id = comp.id $whereSql ORDER BY `Total Value ({$curr})` DESC");
-            return ['title' => 'Overall Stock Overview', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        } elseif ($type === 'company_wise_stock' || $type === 'company_wise') {
-            $whereSql = !empty($conds) ? "WHERE " . implode(" AND ", $conds) : "";
-            $stmt = $this->db->query("SELECT comp.name as 'Company/Manufacturer', COUNT(p.id) as 'Total Products', SUM(p.quantity) as 'Total Stock Qty', SUM(p.quantity * p.cost_price) as 'Total Stock Value ({$curr})' FROM products p JOIN companies comp ON p.company_id = comp.id $whereSql GROUP BY comp.id ORDER BY `Total Stock Value ({$curr})` DESC");
-            return ['title' => 'Company-wise Stock Valuation', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-        }
-        return ['title' => 'Stock Report', 'data' => []];
-    }
-
-    private function getMarginAnalysisReport($start, $end, $categoryId = 'all', $companyId = 'all') {
-        $curr = currency_symbol();
-        $where = [];
-        $params = [];
-        if ($start) { $where[] = "DATE(p.created_at) >= :start"; $params['start'] = $start; }
-        if ($end) { $where[] = "DATE(p.created_at) <= :end"; $params['end'] = $end; }
-        if ($categoryId !== 'all' && !empty($categoryId)) { $where[] = "p.category_id = :cat_id"; $params['cat_id'] = $categoryId; }
-        if ($companyId !== 'all' && !empty($companyId)) { $where[] = "p.company_id = :comp_id"; $params['comp_id'] = $companyId; }
-        $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
-
-        $sql = "SELECT p.name as 'Medicine', g.name as 'Generic', c.name as 'Category', comp.name as 'Company',
-                       p.cost_price as 'Cost Price ({$curr})', p.price as 'Selling Price ({$curr})',
-                       (p.price - p.cost_price) as 'Profit/Unit ({$curr})',
-                       ROUND(CASE WHEN p.price > 0 THEN ((p.price - p.cost_price) / p.price) * 100 ELSE 0 END, 2) as 'Margin (%)',
-                       p.quantity as 'Current Stock'
-                FROM products p
-                LEFT JOIN generics g ON p.generic_id = g.id
-                LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN companies comp ON p.company_id = comp.id
-                $whereSql
-                ORDER BY `Margin (%)` DESC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return ['title' => 'Profit Margin & Markup Analysis', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-    }
-
-    private function getDeadStockReport($days = 90, $categoryId = 'all', $companyId = 'all') {
-        $curr = currency_symbol();
-        $cutoffDate = date('Y-m-d', strtotime("-{$days} days"));
-        $where = ["p.quantity > 0", "p.id NOT IN (SELECT DISTINCT product_id FROM invoice_items ii JOIN invoices i ON ii.invoice_id = i.id WHERE DATE(i.created_at) >= :cutoff)"];
-        $params = ['cutoff' => $cutoffDate];
-
-        if ($categoryId !== 'all' && !empty($categoryId)) { $where[] = "p.category_id = :cat_id"; $params['cat_id'] = $categoryId; }
-        if ($companyId !== 'all' && !empty($companyId)) { $where[] = "p.company_id = :comp_id"; $params['comp_id'] = $companyId; }
-        $whereSql = "WHERE " . implode(" AND ", $where);
-
-        $sql = "SELECT p.name as 'Medicine', c.name as 'Category', comp.name as 'Company',
-                       p.quantity as 'Unsold Stock Qty', p.cost_price as 'Unit Cost ({$curr})',
-                       (p.quantity * p.cost_price) as 'Locked Capital ({$curr})',
-                       p.expiry_date as 'Expiry Date'
-                FROM products p
-                LEFT JOIN categories c ON p.category_id = c.id
-                LEFT JOIN companies comp ON p.company_id = comp.id
-                $whereSql
-                ORDER BY `Locked Capital ({$curr})` DESC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return ['title' => "Dead Stock & Capital Lockup Report (Last {$days} Days)", 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-    }
-
-    private function getCustomerLedgerReport($start, $end) {
-        $curr = currency_symbol();
-        $where = $this->getDateWhere('created_at', $start, $end);
-        $sql = "SELECT customer_name as 'Customer Name', COUNT(id) as 'Total Invoices',
-                       SUM(total_amount) as 'Total Spent ({$curr})',
-                       MAX(created_at) as 'Last Transaction Date'
-                FROM invoices
-                $where
-                GROUP BY customer_name
-                ORDER BY `Total Spent ({$curr})` DESC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($this->getDateParams($start, $end));
-        return ['title' => 'Customer Credit & Ledger Statement', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
-    }
-
-    private function getDateWhere($field, $start, $end) {
-        if ($start && $end) return "WHERE DATE($field) BETWEEN :start AND :end";
-        if ($start) return "WHERE DATE($field) >= :start";
-        if ($end) return "WHERE DATE($field) <= :end";
-        return "";
-    }
-
-    private function getDateParams($start, $end) {
-        $p = [];
-        if ($start) $p['start'] = $start;
-        if ($end) $p['end'] = $end;
-        return $p;
     }
 
     private function buildHtmlTable($data, $title, $summaryTotals = [], $isList = false, $groupBy = '') {
@@ -1102,6 +647,4 @@ class ReportController {
         $objWriter->save('php://output');
         exit;
     }
-
 }
-

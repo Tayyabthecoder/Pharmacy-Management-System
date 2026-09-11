@@ -9,6 +9,7 @@ use App\Models\InvoiceItem;
 use App\Models\InventoryLog;
 use App\Models\Notification;
 use App\Models\Setting;
+use App\Models\ProductBatch;
 
 class InvoiceService {
     protected $productModel;
@@ -17,6 +18,7 @@ class InvoiceService {
     protected $logModel;
     protected $notificationModel;
     protected $settingModel;
+    protected $batchModel;
 
     public function __construct() {
         $this->productModel = new Product();
@@ -25,6 +27,7 @@ class InvoiceService {
         $this->logModel = new InventoryLog();
         $this->notificationModel = new Notification();
         $this->settingModel = new Setting();
+        $this->batchModel = new ProductBatch();
     }
 
     public function createInvoice($userId, $customerName, $productIds, $quantities, $prices, $doctorName = '', $doctorLicense = '', $taxRate = 0, $discountRate = 0, $adminEmail = '', $adminPassword = '') {
@@ -121,7 +124,10 @@ class InvoiceService {
                 }
             }
 
+            $invoiceNumber = $this->invoiceModel->generateInvoiceNumber('INV-');
+
             $invoiceId = $this->invoiceModel->create([
+                'invoice_number' => $invoiceNumber,
                 'user_id' => $userId,
                 'customer_name' => $customerName,
                 'total_amount' => $totalAmount,
@@ -136,6 +142,18 @@ class InvoiceService {
                 $subtotal = $item['subtotal'];
                 $product = $item['product'];
                 $costPrice = (float)($product['cost_price'] ?? 0.00);
+
+                // FEFO Batch stock deduction
+                $batchDeductions = $this->batchModel->deductStockFEFO($pid, $qty);
+                if (!empty($batchDeductions)) {
+                    $totalBatchCost = 0.00;
+                    foreach ($batchDeductions as $d) {
+                        $totalBatchCost += ($d['quantity'] * $d['cost_price']);
+                    }
+                    if ($qty > 0) {
+                        $costPrice = round($totalBatchCost / $qty, 2);
+                    }
+                }
 
                 $this->itemModel->create([
                     'invoice_id' => $invoiceId,
@@ -155,7 +173,7 @@ class InvoiceService {
                     'user_id' => $userId,
                     'qty_change' => -$qty,
                     'type' => 'sale',
-                    'remarks' => "Invoice #$invoiceId"
+                    'remarks' => "Invoice $invoiceNumber (#$invoiceId)"
                 ]);
 
                 $product = $item['product'];
@@ -166,7 +184,7 @@ class InvoiceService {
                             "Low Stock Alert: " . $product['name'],
                             "Stock for {$product['name']} has dropped to {$newStock} (Minimum: {$product['min_stock_level']}).",
                             'warning',
-                            URL_ROOT . '/admin/products',
+                            url('/admin/products'),
                             true
                         );
                     }
@@ -177,9 +195,9 @@ class InvoiceService {
                 $currency = $this->settingModel->get('currency', '$');
                 $this->notificationModel->notifyAdmins(
                     "New Invoice Created",
-                    "Invoice #{$invoiceId} was created for {$customerName} totaling {$currency}{$totalAmount}.",
+                    "Invoice $invoiceNumber was created for {$customerName} totaling {$currency}{$totalAmount}.",
                     'success',
-                    URL_ROOT . '/admin/invoices',
+                    url('/admin/invoices'),
                     false
                 );
             }
@@ -195,7 +213,7 @@ class InvoiceService {
         }
     }
 
-    public function createReturnInvoice($userId, $customerName, $productIds, $quantities, $prices, $doctorName = '', $doctorLicense = '', $taxRate = 0, $discountRate = 0, $adminEmail = '', $adminPassword = '') {
+    public function createReturnInvoice($userId, $customerName, $productIds, $quantities, $prices, $doctorName = '', $doctorLicense = '', $taxRate = 0, $discountRate = 0, $adminEmail = '', $adminPassword = '', $originalInvoiceId = null) {
         if (empty($customerName)) {
             $customerName = "Walk-in Patient";
         }
@@ -204,9 +222,24 @@ class InvoiceService {
         $requiresRx = false;
         $validatedProducts = [];
         $subtotalAmount = 0;
+        $resolvedOriginalId = null;
 
         try {
             $this->invoiceModel->beginTransaction();
+
+            // Validate against original invoice if provided
+            if (!empty($originalInvoiceId)) {
+                $origInvoice = $this->invoiceModel->getByIdOrNumber((string)$originalInvoiceId);
+                if (!$origInvoice) {
+                    throw new Exception("Original invoice '$originalInvoiceId' not found.");
+                }
+                $resolvedOriginalId = (int)$origInvoice['id'];
+                $origItems = $this->invoiceModel->getItemsByInvoiceId($resolvedOriginalId);
+                $origQtyMap = [];
+                foreach ($origItems as $oItem) {
+                    $origQtyMap[$oItem['product_id']] = (int)$oItem['quantity'];
+                }
+            }
 
             foreach ($productIds as $index => $pid) {
                 $qty = (int)$quantities[$index];
@@ -216,6 +249,14 @@ class InvoiceService {
                     $product = $this->productModel->find('products', $pid);
                     if (!$product) {
                         throw new Exception("Product ID $pid not found.");
+                    }
+
+                    // If linked to original invoice, ensure returned quantity does not exceed original purchase
+                    if (!empty($origQtyMap)) {
+                        $maxAllowed = $origQtyMap[$pid] ?? 0;
+                        if ($qty > $maxAllowed) {
+                            throw new Exception("Returned quantity ($qty) exceeds original purchased quantity ($maxAllowed) for medicine: " . htmlspecialchars($product['name']));
+                        }
                     }
 
                     // For returns, we don't check if we have enough stock, we are receiving it back.
@@ -246,13 +287,17 @@ class InvoiceService {
             // Make it negative for returns
             $negativeTotalAmount = -$totalAmount;
 
+            $invoiceNumber = $this->invoiceModel->generateInvoiceNumber('RET-');
+
             $invoiceId = $this->invoiceModel->create([
+                'invoice_number' => $invoiceNumber,
                 'user_id' => $userId,
                 'customer_name' => $customerName,
                 'total_amount' => $negativeTotalAmount,
                 'doctor_name' => $doctorName,
                 'doctor_license' => $doctorLicense,
-                'is_return' => 1
+                'is_return' => 1,
+                'original_invoice_id' => $resolvedOriginalId
             ]);
 
             foreach ($validatedProducts as $item) {
@@ -277,6 +322,9 @@ class InvoiceService {
                 // So passing negative $qty will ADD it to stock.
                 $this->productModel->updateStock($pid, -$qty);
 
+                // Add stock back to batch
+                $this->batchModel->returnStockToBatch($pid, $qty, $product['batch_number'] ?? null, $product['expiry_date'] ?? null, $costPrice);
+
                 $this->logModel->create([
                     'product_id' => $pid,
                     'user_id' => $userId,
@@ -290,9 +338,9 @@ class InvoiceService {
                 $currency = $this->settingModel->get('currency', '$');
                 $this->notificationModel->notifyAdmins(
                     "Return Invoice Processed",
-                    "Return Invoice #{$invoiceId} was processed for {$customerName} totaling {$currency}{$totalAmount}.",
+                    "Return Invoice $invoiceNumber (#{$invoiceId}) was processed for {$customerName} totaling {$currency}{$totalAmount}.",
                     'info',
-                    URL_ROOT . '/admin/invoices',
+                    url('/admin/invoices'),
                     false
                 );
             }

@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\InventoryLog;
 use App\Models\Notification;
+use App\Support\Cache;
 
 class AdminController {
     protected $productModel;
@@ -49,18 +50,20 @@ class AdminController {
         $nearExpiryCount = 0;
         $recentSales = [];
         $recentActivity = [];
+        $salesmanLeaderboard = [];
+        $topProductsStats = [];
 
         try {
-            $totalProducts = $this->productModel->count('products');
-            $totalCategories = $this->categoryModel->count('categories');
+            $totalProducts = Cache::remember('dash_total_products', 60, fn() => $this->productModel->count('products'));
+            $totalCategories = Cache::remember('dash_total_categories', 60, fn() => $this->categoryModel->count('categories'));
             
             // Fetch total revenue using Invoice Model
             $totalSales = $this->invoiceModel->getTotalRevenue();
             $todayRevenue = $this->invoiceModel->getTodayRevenue();
             $todayInvoiceCount = $this->invoiceModel->getTodayCount();
-            $totalInventoryValue = $this->productModel->getTotalInventoryValue();
+            $totalInventoryValue = Cache::remember('dash_total_inventory_val', 60, fn() => $this->productModel->getTotalInventoryValue());
             
-            $lowStock = $this->productModel->count('products', 'quantity <= min_stock_level');
+            $lowStock = Cache::remember('dash_low_stock_count', 60, fn() => $this->productModel->count('products', 'quantity <= min_stock_level'));
             
             $expiredCount = count($this->productModel->getExpiredProducts());
             $nearExpiryCount = count($this->productModel->getNearExpiryProducts(180));
@@ -74,6 +77,17 @@ class AdminController {
 
             // Today's activity summary for the operations feed
             $activitySummary = $this->logModel->getTodaySummary();
+
+            // Salesman Leaderboard & Top Selling Products (7 days, fallback to all-time if empty)
+            $salesmanLeaderboard = $this->invoiceModel->getSalesmanLeaderboard(7, 5);
+            if (empty($salesmanLeaderboard)) {
+                $salesmanLeaderboard = $this->invoiceModel->getSalesmanLeaderboard(0, 5);
+            }
+
+            $topProductsStats = $this->invoiceModel->getTopSellingProductsStats(7, 5);
+            if (empty($topProductsStats)) {
+                $topProductsStats = $this->invoiceModel->getTopSellingProductsStats(0, 5);
+            }
 
         } catch (Exception $e) {
             $error = "Error fetching stats: " . $e->getMessage();
@@ -157,7 +171,11 @@ class AdminController {
                     $_POST['price'] ?? [],
                     trim($_POST['doctor_name'] ?? ''),
                     trim($_POST['doctor_license'] ?? ''),
-                    (float)($_POST['tax_rate'] ?? 0)
+                    (float)($_POST['tax_rate'] ?? 0),
+                    0,
+                    '',
+                    '',
+                    !empty($_POST['original_invoice_id']) ? trim($_POST['original_invoice_id']) : null
                 );
 
                 $action = $_POST['action'] ?? 'save';

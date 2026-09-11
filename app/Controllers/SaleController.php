@@ -18,7 +18,7 @@ class SaleController {
     protected $logModel;
 
     public function __construct() {
-        (new \App\Middleware\RoleMiddleware(['admin']))->handle();
+        (new \App\Middleware\RoleMiddleware(['admin', 'salesman']))->handle();
         $this->invoiceModel = new Invoice();
         $this->itemModel = new InvoiceItem();
         $this->productModel = new Product();
@@ -26,6 +26,7 @@ class SaleController {
     }
 
     public function index() {
+        (new \App\Middleware\RoleMiddleware(['admin']))->handle();
         $pageTitle = "Invoices Management";
 
         // Fetch Invoices with Pagination
@@ -45,21 +46,22 @@ class SaleController {
 
     public function detailsApi() {
         header('Content-Type: application/json');
-        $id = (int)($_GET['id'] ?? 0);
+        $query = trim($_GET['id'] ?? $_GET['invoice_number'] ?? '');
         
-        if ($id <= 0) {
-            echo json_encode(['success' => false, 'message' => 'Invalid Invoice ID']);
+        if ($query === '') {
+            echo json_encode(['success' => false, 'message' => 'Please provide an Invoice ID or Invoice Number']);
             return;
         }
         
-        $invoice = $this->invoiceModel->getInvoiceWithDetails($id);
+        $userId = ($_SESSION['role'] !== 'admin') ? (int)$_SESSION['user_id'] : null;
+        $invoice = $this->invoiceModel->getByIdOrNumber($query, $userId);
         
         if (!$invoice) {
-            echo json_encode(['success' => false, 'message' => 'Invoice not found']);
+            echo json_encode(['success' => false, 'message' => 'Invoice not found or access denied.']);
             return;
         }
         
-        $items = $this->itemModel->getByInvoiceWithProducts($id);
+        $items = $this->itemModel->getByInvoiceWithProducts((int)$invoice['id']);
         
         echo json_encode([
             'success' => true,

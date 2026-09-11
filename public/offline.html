@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - Pharmacy Management System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --warning-color: #f59e0b;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .offline-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .icon-container {
+            width: 76px;
+            height: 76px;
+            margin: 0 auto 24px;
+            background: rgba(245, 158, 11, 0.12);
+            border: 2px solid rgba(245, 158, 11, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .status-badge.online {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--success-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .btn-retry {
+            background: var(--primary-color);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-retry:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-pos {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .btn-pos:hover {
+            color: #fff;
+            border-color: #64748b;
+        }
+
+        .tips-box {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            text-align: left;
+        }
+
+        .tips-box strong {
+            color: #e2e8f0;
+            display: block;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-card">
+        <div class="icon-container">
+            📡
+        </div>
+        <h1>Connection Lost</h1>
+        <p>You appear to be offline or disconnected from the local pharmacy network.</p>
+        
+        <div class="status-badge" id="networkBadge">
+            <span class="status-dot"></span>
+            <span id="badgeText">Offline Mode Active</span>
+        </div>
+
+        <button class="btn-retry" onclick="retryConnection()" id="retryBtn">
+            🔄 Check Connection
+        </button>
+
+        <button class="btn-pos" onclick="window.history.back()">
+            ← Go Back to Cached Page
+        </button>
+
+        <div class="tips-box">
+            <strong>💡 POS Offline Resilience:</strong>
+            If you were in the middle of a sale in the POS terminal, your cached medicine catalog and offline queued invoices remain safe in your browser storage.
+        </div>
+    </div>
+
+    <script>
+        function updateNetworkStatus() {
+            const badge = document.getElementById('networkBadge');
+            const badgeText = document.getElementById('badgeText');
+            if (navigator.onLine) {
+                badge.classList.add('online');
+                badgeText.textContent = 'Connection Restored! Reloading...';
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                badge.classList.remove('online');
+                badgeText.textContent = 'Offline Mode Active';
+            }
+        }
+
+        function retryConnection() {
+            const btn = document.getElementById('retryBtn');
+            btn.textContent = '⏳ Checking...';
+            fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+                .then(() => {
+                    window.location.reload();
+                })
+                .catch(() => {
+                    btn.textContent = '🔄 Connection still offline — Retry';
+                    setTimeout(() => { btn.textContent = '🔄 Check Connection'; }, 2000);
+                });
+        }
+
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        updateNetworkStatus();
+    </script>
+</body>
+</html>
