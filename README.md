@@ -6,7 +6,6 @@
 ![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![CSS3](https://img.shields.io/badge/CSS3-Glassmorphism-1572B6?style=for-the-badge&logo=css3&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 **A modern, robust, high-performance web application for retail pharmacies, medical stores, and hospital dispensaries.**
 
@@ -372,10 +371,6 @@ Open your browser and navigate to `http://localhost:8000`.
 - **Session Hardening:** Cookies enforce `HttpOnly` and `SameSite=Strict` policies.
 
 ---
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
 
 <div align="center">
 
