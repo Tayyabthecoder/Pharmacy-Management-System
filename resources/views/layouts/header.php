@@ -55,21 +55,22 @@ $zoomScale = $systemResolution / 100;
     <!-- PWA Web App Manifest -->
     <link rel="manifest" href="<?php echo URL_ROOT; ?>/manifest.json">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Local Typography & Fonts -->
+    <link rel="stylesheet" href="<?php echo URL_ROOT; ?>/assets/css/fonts.css">
     
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Local Font Awesome -->
+    <link rel="stylesheet" href="<?php echo URL_ROOT; ?>/assets/vendor/fontawesome/css/all.min.css">
     
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Local Chart.js -->
+    <script src="<?php echo URL_ROOT; ?>/assets/vendor/chartjs/chart.umd.min.js"></script>
+
+    <!-- Local TomSelect CSS & JS -->
+    <link rel="stylesheet" href="<?php echo URL_ROOT; ?>/assets/vendor/tom-select/tom-select.bootstrap4.min.css">
+    <script src="<?php echo URL_ROOT; ?>/assets/vendor/tom-select/tom-select.complete.min.js"></script>
 
     <!-- Main Stylesheet & Local Vector Icon Engine -->
     <link rel="stylesheet" href="<?php echo URL_ROOT; ?>/assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="<?php echo URL_ROOT; ?>/assets/css/local-icons.css">
-
-    <!-- TomSelect CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap4.min.css" rel="stylesheet">
     
     <!-- Theme Stylesheet -->
     <?php

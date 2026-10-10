@@ -975,3 +975,123 @@ i.fa-xmark {
     mask-image: url('../icons/svg/fa-xmark.svg') !important;
 }
 
+
+/* ===================================================================
+   ADDITIONAL VECTOR ICONS (100% Offline Coverage)
+   =================================================================== */
+
+.fa-adjust, i.fa-adjust {
+    -webkit-mask-image: url('../icons/svg/fa-adjust.svg') !important;
+    mask-image: url('../icons/svg/fa-adjust.svg') !important;
+}
+
+.fa-atom, i.fa-atom {
+    -webkit-mask-image: url('../icons/svg/fa-atom.svg') !important;
+    mask-image: url('../icons/svg/fa-atom.svg') !important;
+}
+
+.fa-check-double, i.fa-check-double {
+    -webkit-mask-image: url('../icons/svg/fa-check-double.svg') !important;
+    mask-image: url('../icons/svg/fa-check-double.svg') !important;
+}
+
+.fa-circle-dollar-to-slot, i.fa-circle-dollar-to-slot {
+    -webkit-mask-image: url('../icons/svg/fa-circle-dollar-to-slot.svg') !important;
+    mask-image: url('../icons/svg/fa-circle-dollar-to-slot.svg') !important;
+}
+
+.fa-clipboard-list, i.fa-clipboard-list {
+    -webkit-mask-image: url('../icons/svg/fa-clipboard-list.svg') !important;
+    mask-image: url('../icons/svg/fa-clipboard-list.svg') !important;
+}
+
+.fa-cloud-upload-alt, i.fa-cloud-upload-alt {
+    -webkit-mask-image: url('../icons/svg/fa-cloud-upload-alt.svg') !important;
+    mask-image: url('../icons/svg/fa-cloud-upload-alt.svg') !important;
+}
+
+.fa-credit-card, i.fa-credit-card {
+    -webkit-mask-image: url('../icons/svg/fa-credit-card.svg') !important;
+    mask-image: url('../icons/svg/fa-credit-card.svg') !important;
+}
+
+.fa-eye-slash, i.fa-eye-slash {
+    -webkit-mask-image: url('../icons/svg/fa-eye-slash.svg') !important;
+    mask-image: url('../icons/svg/fa-eye-slash.svg') !important;
+}
+
+.fa-file-csv, i.fa-file-csv {
+    -webkit-mask-image: url('../icons/svg/fa-file-csv.svg') !important;
+    mask-image: url('../icons/svg/fa-file-csv.svg') !important;
+}
+
+.fa-file-import, i.fa-file-import {
+    -webkit-mask-image: url('../icons/svg/fa-file-import.svg') !important;
+    mask-image: url('../icons/svg/fa-file-import.svg') !important;
+}
+
+.fa-fire-alt, i.fa-fire-alt {
+    -webkit-mask-image: url('../icons/svg/fa-fire-alt.svg') !important;
+    mask-image: url('../icons/svg/fa-fire-alt.svg') !important;
+}
+
+.fa-keyboard, i.fa-keyboard {
+    -webkit-mask-image: url('../icons/svg/fa-keyboard.svg') !important;
+    mask-image: url('../icons/svg/fa-keyboard.svg') !important;
+}
+
+.fa-lightbulb, i.fa-lightbulb {
+    -webkit-mask-image: url('../icons/svg/fa-lightbulb.svg') !important;
+    mask-image: url('../icons/svg/fa-lightbulb.svg') !important;
+}
+
+.fa-medal, i.fa-medal {
+    -webkit-mask-image: url('../icons/svg/fa-medal.svg') !important;
+    mask-image: url('../icons/svg/fa-medal.svg') !important;
+}
+
+.fa-money-bill-wave, i.fa-money-bill-wave {
+    -webkit-mask-image: url('../icons/svg/fa-money-bill-wave.svg') !important;
+    mask-image: url('../icons/svg/fa-money-bill-wave.svg') !important;
+}
+
+.fa-money-check, i.fa-money-check {
+    -webkit-mask-image: url('../icons/svg/fa-money-check.svg') !important;
+    mask-image: url('../icons/svg/fa-money-check.svg') !important;
+}
+
+.fa-reply, i.fa-reply {
+    -webkit-mask-image: url('../icons/svg/fa-reply.svg') !important;
+    mask-image: url('../icons/svg/fa-reply.svg') !important;
+}
+
+.fa-shopping-bag, i.fa-shopping-bag {
+    -webkit-mask-image: url('../icons/svg/fa-shopping-bag.svg') !important;
+    mask-image: url('../icons/svg/fa-shopping-bag.svg') !important;
+}
+
+.fa-sticky-note, i.fa-sticky-note {
+    -webkit-mask-image: url('../icons/svg/fa-sticky-note.svg') !important;
+    mask-image: url('../icons/svg/fa-sticky-note.svg') !important;
+}
+
+.fa-trending-up, i.fa-trending-up {
+    -webkit-mask-image: url('../icons/svg/fa-trending-up.svg') !important;
+    mask-image: url('../icons/svg/fa-trending-up.svg') !important;
+}
+
+.fa-wallet, i.fa-wallet {
+    -webkit-mask-image: url('../icons/svg/fa-wallet.svg') !important;
+    mask-image: url('../icons/svg/fa-wallet.svg') !important;
+}
+
+.fa-wifi, i.fa-wifi {
+    -webkit-mask-image: url('../icons/svg/fa-wifi.svg') !important;
+    mask-image: url('../icons/svg/fa-wifi.svg') !important;
+}
+
+.fa-wifi-slash, i.fa-wifi-slash {
+    -webkit-mask-image: url('../icons/svg/fa-wifi-slash.svg') !important;
+    mask-image: url('../icons/svg/fa-wifi-slash.svg') !important;
+}
+

@@ -8,8 +8,8 @@ $currency = $settings['currency'] ?? 'PKR';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Label - <?php echo htmlspecialchars($product['name']); ?></title>
-    <!-- JsBarcode for rendering crisp vector SVG barcodes -->
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- JsBarcode for rendering crisp vector SVG barcodes (Local & Offline) -->
+    <script src="<?php echo URL_ROOT; ?>/assets/vendor/jsbarcode/JsBarcode.all.min.js"></script>
     <style>
         * {
             box-sizing: border-box;

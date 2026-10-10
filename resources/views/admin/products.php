@@ -2047,14 +2047,16 @@ $expMed = $summaryStats['expiring'] ?? 0;
         // Initialize view mode from localStorage
         setViewMode(currentViewMode);
 
-        if(document.getElementById('prodGeneric')) {
-            window.tsGeneric = new TomSelect('#prodGeneric', { create: false, sortField: {field: "text", direction: "asc"} });
-        }
-        if(document.getElementById('prodCat')) {
-            window.tsCategory = new TomSelect('#prodCat', { create: false, sortField: {field: "text", direction: "asc"} });
-        }
-        if(document.getElementById('prodCompany')) {
-            window.tsCompany = new TomSelect('#prodCompany', { create: false, sortField: {field: "text", direction: "asc"} });
+        if (typeof TomSelect !== 'undefined') {
+            if(document.getElementById('prodGeneric')) {
+                window.tsGeneric = new TomSelect('#prodGeneric', { create: false, sortField: {field: "text", direction: "asc"} });
+            }
+            if(document.getElementById('prodCat')) {
+                window.tsCategory = new TomSelect('#prodCat', { create: false, sortField: {field: "text", direction: "asc"} });
+            }
+            if(document.getElementById('prodCompany')) {
+                window.tsCompany = new TomSelect('#prodCompany', { create: false, sortField: {field: "text", direction: "asc"} });
+            }
         }
     });
 </script>

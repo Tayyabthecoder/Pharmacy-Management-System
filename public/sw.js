@@ -3,18 +3,27 @@
  * Provides offline caching, resilient API fallbacks, and PWA capabilities.
  */
 
-const CACHE_NAME = 'pms-app-cache-v1';
+const CACHE_NAME = 'pms-app-cache-v2';
 
 const STATIC_ASSETS = [
     './',
     'offline.html',
     'manifest.json',
     'assets/css/style.css',
+    'assets/css/fonts.css',
     'assets/css/local-icons.css',
     'assets/css/themes/glass.css',
     'assets/css/themes/neon-dark.css',
     'assets/css/themes/flat.css',
-    'assets/js/main.js'
+    'assets/js/main.js',
+    'assets/vendor/chartjs/chart.umd.min.js',
+    'assets/vendor/tom-select/tom-select.complete.min.js',
+    'assets/vendor/tom-select/tom-select.bootstrap4.min.css',
+    'assets/vendor/jsbarcode/JsBarcode.all.min.js',
+    'assets/vendor/fontawesome/css/all.min.css',
+    'assets/vendor/fontawesome/webfonts/fa-solid-900.woff2',
+    'assets/vendor/fontawesome/webfonts/fa-regular-400.woff2',
+    'assets/vendor/fontawesome/webfonts/fa-brands-400.woff2'
 ];
 
 // Install Event — Pre-cache core shell
